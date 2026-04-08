@@ -44,18 +44,25 @@ user://projects/
 
 ### Steps
 1. Create Godot 4.6 project with XR configured
-   - Install Android build template
-   - Install OpenXR vendor plugin (godot_openxr_vendors)
-   - Configure project.godot: XR mode = OpenXR, test both Vulkan Mobile and Compatibility renderer
-   - Configure passthrough: transparent viewport, alpha blend environment, XR_ENV_BLEND_MODE_ALPHA_BLEND
+   - Create project.godot: renderer = mobile (Vulkan Mobile), ETC2/ASTC compression, foveation level 3 with dynamic foveation
+   - Add `android/` to .gitignore (Android build template directory)
+   - Install Android build template (manual, in Godot editor: Project → Install Android Build Template)
+   - Download and install OpenXR vendor plugin from GodotVR/godot_openxr_vendors GitHub releases (manual, must match Godot 4.6); enable in Project Settings → Plugins
+   - Enable Meta Passthrough extension in Project Settings → XR → OpenXR → Extensions → Meta (may need Advanced Settings toggle)
+   - Configure export preset for Quest 3 (manual, in Godot editor: XR Mode = OpenXR, Passthrough = Required, Min SDK = 29)
 2. Create main scene hierarchy
+   - WorldEnvironment node (passthrough configured at runtime via GDScript, not scene properties)
    - XROrigin3D with XRCamera3D
-   - Two XRController3D nodes (left hand, right hand)
-   - Simple visual at each controller tip (sphere mesh) to confirm tracking
-3. Set up OpenXR action map
-   - Trigger (float + click), grip (float + click), joystick (Vector2), face buttons (ax_button, by_button), menu button
-4. Verify controller input signals in GDScript
-   - Log trigger pressure, grip, joystick, and button events to confirm all inputs work
+   - Two XRController3D nodes (left hand, right hand) with pose = aim
+   - Small sphere mesh (2cm radius) at each controller to confirm tracking
+3. Create XR start script (attached to scene root, not an autoload)
+   - Initialize OpenXR interface, enable XR on viewport, disable VSync (OpenXR handles timing), enable VRS
+   - Configure passthrough at runtime: check XR_ENV_BLEND_MODE_ALPHA_BLEND support, set environment blend mode, transparent viewport bg, Environment.BG_COLOR with alpha 0
+   - Handle session lifecycle: session_begun (set refresh rate up to 90Hz, sync physics ticks), session_visible/session_focussed (pause/resume), session_stopping
+   - Log all controller input: button_pressed, button_released, input_float_changed, input_vector2_changed signals on both controllers
+4. Verify default OpenXR action map provides all required inputs
+   - Godot 4.x ships with a default action map that includes trigger, grip, thumbstick, face buttons, and menu — no manual action map setup needed
+   - If any input is missing on-device, customize the action map in the editor
 
 ### Milestone Test
 - [ ] App launches on Quest 3 in passthrough mode
@@ -64,6 +71,9 @@ user://projects/
 - [ ] All button inputs register (grip, joystick, X/A, Y/B, menu)
 - [ ] Passthrough is clear (no black screen, no visual artifacts)
 - [ ] Determine renderer: Vulkan Mobile or Compatibility
+- [ ] Physics tick rate matches display refresh rate
+- [ ] App pauses when headset is removed, resumes when put back on
+- [ ] WorldEnvironment background is fully transparent (no colored tint)
 
 ---
 
