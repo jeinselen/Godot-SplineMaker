@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://448v3tmbnr84" path="res://scripts/project_space.gd" id="2"]
 [ext_resource type="Script" uid="uid://cxty16wgd7pct" path="res://scripts/navigation.gd" id="3"]
 [ext_resource type="Script" uid="uid://dwxtn5p34mthq" path="res://scripts/interaction.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/project_manager.gd" id="5"]
 
 [sub_resource type="StandardMaterial3D" id="Material_1"]
 transparency = 1
@@ -53,4 +54,9 @@ directional_shadow_blend_splits = true
 script = ExtResource("3")
 
 [node name="Interaction" type="Node3D" parent="." unique_id=1126405449]
+unique_name_in_owner = true
 script = ExtResource("4")
+
+[node name="ProjectManager" type="Node" parent="." unique_id=3847291056]
+unique_name_in_owner = true
+script = ExtResource("5")

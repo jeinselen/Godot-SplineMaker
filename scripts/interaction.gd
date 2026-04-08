@@ -6,6 +6,7 @@ extends Node3D
 @onready var left_controller: XRController3D = %LeftController
 @onready var right_controller: XRController3D = %RightController
 @onready var project_space: Node3D = %ProjectSpace
+@onready var project_manager = %ProjectManager
 
 var left_action_area: ActionArea
 var right_action_area: ActionArea
@@ -38,6 +39,11 @@ var _left_stroke: DrawStroke = null
 var _right_stroke: DrawStroke = null
 var _left_trigger_floor: float = 0.0
 var _right_trigger_floor: float = 0.0
+
+# Translate-active flag: set when trigger is pressed while points are hovered (non-draw mode)
+# Used to avoid spurious autosaves when trigger releases with an empty hover set
+var _left_translate_active: bool = false
+var _right_translate_active: bool = false
 
 # Grip-translate state (per controller): grip moves hovered points instead of project space
 var _left_grip_translating: bool = false
@@ -312,8 +318,8 @@ func _show_short_draw_warning(controller_id: int) -> void:
 	warning.pixel_size = 0.001
 	warning.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	warning.modulate = Color(1.0, 0.9, 0.3)
-	warning.global_position = controller.global_position + Vector3(0, 0.1, 0)
 	add_child(warning)
+	warning.global_position = controller.global_position + Vector3(0, 0.1, 0)
 
 	# Auto-dismiss after 5 seconds (short for testing; spec says 30s but that's for the full panel version)
 	var timer := get_tree().create_timer(5.0)
@@ -323,6 +329,32 @@ func _show_short_draw_warning(controller_id: int) -> void:
 	)
 
 
+# --- Helpers for project_manager ---
+
+## Returns true while any trigger or grip translate is active on either controller.
+## Used by project_manager to suppress undo/redo during active input.
+func is_input_active() -> bool:
+	return _left_trigger_active or _right_trigger_active \
+		or _left_grip_translating or _right_grip_translating
+
+
+## Restores action area radii after loading a save file.
+func restore_action_area_sizes(left_radius: float, right_radius: float) -> void:
+	left_action_area.radius = left_radius
+	left_action_area._apply_radius()
+	right_action_area.radius = right_radius
+	right_action_area._apply_radius()
+
+
+## Clears hover state before project_manager frees SplineNodes during restore,
+## preventing dangling node references in the hover diff loop.
+func clear_hover_sets() -> void:
+	_left_hover_set = []
+	_right_hover_set = []
+	_left_was_hovering = false
+	_right_was_hovering = false
+
+
 # --- Input signal handlers ---
 
 func _on_button_pressed(button_name: String, controller_id: int) -> void:
@@ -330,6 +362,22 @@ func _on_button_pressed(button_name: String, controller_id: int) -> void:
 		_on_trigger_pressed(controller_id)
 	elif button_name == "grip_click":
 		_on_grip_pressed(controller_id)
+	elif button_name == "ax_button":
+		_try_undo()
+	elif button_name == "by_button":
+		_try_redo()
+
+
+func _try_undo() -> void:
+	if is_input_active():
+		return
+	project_manager.undo()
+
+
+func _try_redo() -> void:
+	if is_input_active():
+		return
+	project_manager.redo()
 
 
 func _on_button_released(button_name: String, controller_id: int) -> void:
@@ -370,6 +418,12 @@ func _on_trigger_pressed(controller_id: int) -> void:
 		# Mark hovered points as editing
 		for entry in hover_set:
 			(entry["spline"] as SplineNode).set_point_editing(entry["index"], true)
+		# Track that a translate edit began (for autosave on release)
+		if not hover_set.is_empty():
+			if controller_id == CONTROLLER_ID_LEFT:
+				_left_translate_active = true
+			else:
+				_right_translate_active = true
 
 
 func _on_trigger_released(controller_id: int) -> void:
@@ -382,12 +436,22 @@ func _on_trigger_released(controller_id: int) -> void:
 	var is_drawing := _left_drawing if controller_id == CONTROLLER_ID_LEFT else _right_drawing
 	if is_drawing:
 		_finalize_drawing(controller_id)
+		project_manager.autosave()
 		return
 
 	# Clear editing state on hovered points
 	var hover_set := _get_hover_set(controller_id)
 	for entry in hover_set:
 		(entry["spline"] as SplineNode).set_point_editing(entry["index"], false)
+
+	# Autosave if a translate edit was active
+	var translate_was_active := _left_translate_active if controller_id == CONTROLLER_ID_LEFT else _right_translate_active
+	if translate_was_active:
+		if controller_id == CONTROLLER_ID_LEFT:
+			_left_translate_active = false
+		else:
+			_right_translate_active = false
+		project_manager.autosave()
 
 
 # --- Grip-based point translation ---
@@ -459,6 +523,8 @@ func _on_grip_released(controller_id: int) -> void:
 		_right_grip_initial_basis = Basis.IDENTITY
 		_right_grip_scale = 1.0
 		_right_grip_grabbed = []
+
+	project_manager.autosave()
 
 
 func _update_grip_transform(controller_id: int) -> void:
