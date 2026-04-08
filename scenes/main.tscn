@@ -1,6 +1,8 @@
 [gd_scene format=3 uid="uid://f42e54m26p33"]
 
 [ext_resource type="Script" uid="uid://6s7psdiak51a" path="res://scripts/xr_start.gd" id="1"]
+[ext_resource type="Script" uid="uid://bph2s5nav1kxe" path="res://scripts/project_space.gd" id="2"]
+[ext_resource type="Script" uid="uid://d0r3vkm8qp5nt" path="res://scripts/navigation.gd" id="3"]
 
 [sub_resource type="StandardMaterial3D" id="Material_1"]
 transparency = 1
@@ -21,6 +23,7 @@ current = true
 [node name="XRCamera3D" type="XRCamera3D" parent="XROrigin3D" unique_id=590917505]
 
 [node name="LeftController" type="XRController3D" parent="XROrigin3D" unique_id=1230531634]
+unique_name_in_owner = true
 tracker = &"left_hand"
 pose = &"aim"
 
@@ -29,9 +32,17 @@ material_override = SubResource("Material_1")
 mesh = SubResource("SphereMesh_1")
 
 [node name="RightController" type="XRController3D" parent="XROrigin3D" unique_id=955064581]
+unique_name_in_owner = true
 tracker = &"right_hand"
 pose = &"aim"
 
 [node name="ControllerMesh" type="MeshInstance3D" parent="XROrigin3D/RightController" unique_id=571418254]
 material_override = SubResource("Material_1")
 mesh = SubResource("SphereMesh_1")
+
+[node name="ProjectSpace" type="Node3D" parent="."]
+unique_name_in_owner = true
+script = ExtResource("2")
+
+[node name="Navigation" type="Node3D" parent="."]
+script = ExtResource("3")
