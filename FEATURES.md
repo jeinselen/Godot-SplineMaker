@@ -7,26 +7,35 @@ Why Godot:
 Target Platform:
 - Meta Quest 3 with passthrough
 
+General Principles:
+- When possible, native OS features should be used; folder selection dialogues, keyboard entry, and other standard available OS features should not be re-invented for this experience
+
 User Experience:
 - Open the app on a VR headset
 	- Passthrough mode, no virtual environment
 	- Simple panel with project list (choose existing project or create new project) and settings button to open settings sub-panel
-		- Each project entry has a rename button (opens platform text entry) and a delete button (opens a confirmation dialogue before deleting)
-		- Settings sub-panel should include a folder selector for the file output location (ideally the default should be the user's documents directory, if not, on first launch the user should be prompted to choose an output location for exported .blend files) and any available global performance adjustments (such as setting the resolution of preview meshes)
+		- Each project entry has a rename button (opens native platform text entry) and a delete button (opens a confirmation dialogue before deleting)
+		- Settings sub-panel should include a folder selector (native OS dialogue) for the file output location (ideally the default should be the user's documents directory, if not, on first launch the user should be prompted to choose an output location for exported .blend files) and any available global performance adjustments (such as setting the resolution of preview meshes)
 		- Settings should include undo step count (default 32)
 		- Settings should include control panel side preference (left or right)
 - Project is opened (either existing or new)
 	- New projects should be automatically named with the date and time (YYYY-MM-DD-HH-MM)
 	- Visual X, Y, Z axis for the project space (1 unit = 1 meter, the axis visuals can extend to just the -1 through +1 range in all three directions)
+	- Default mode on open:
+		- New project or existing project with no splines: Draw mode
+		- Existing project with one or more splines: Move mode
 	- Panel of controls
-		- Buttons to save and close project, undo, redo, and reset view (reset position of project space in XR space)
+		- Buttons to save and close project, undo, redo, and reset view (reset position, rotation, and scale of project space in XR space)
 		- Mode selection (options listed in a row, just one active at a time, falling back to a default Translate interaction as needed):
 			- Move (spline edit mode, allows for translation of splines)
 			- Draw (create new spline, generating control points automatically as the controller moves through space)
 			- Extrude (extend existing splines from start or end points, one point at a time)
 			- Size (set the size value of a control point and the resulting diameter of the generated mesh)
 			- Weight (set the weight of a control point)
+		- When Draw mode is selected, a "Curve Accuracy" slider should appear in the panel (controls how closely the generated spline follows the user's drawn path; higher = more points and tighter fit, lower = fewer points and smoother result)
 		- Spline list (with delete buttons once splines are added)
+			- When the list is empty, display the text "add a spline by drawing"
+			- The spline list should be scrollable using the controller joystick Y axis (up/down) while pointing at the list
 			- Clicking a spline list entry selects that spline; the latest created spline or manually selected spline remains active (no deselect)
 			- Selected spline should have the following available properties:
 				- Order U (default to 4)
@@ -55,13 +64,14 @@ Controls:
 - Button mappings:
 	- Trigger: primary action (draw, extrude, translate, interact with panels)
 	- Grip: grab and move project space or control panel
-	- X or A: undo (in addition to the undo button on the control panel)
-	- Y or B: redo (in addition to the redo button on the control panel)
-	- Y or B while trigger held with point in active area: delete control point
-	- Joystick: mode-dependent (resize action area, adjust size/weight values, scale splines)
+	- X or A: undo (suppressed while trigger or grip is active on either controller)
+	- Y or B: redo (suppressed while trigger or grip is active on either controller); when trigger is held with a point in the active area, deletes that control point instead
+	- Menu button (left controller on Quest 3): reset project view (position, rotation, and scale) and reset control panel position
+	- Joystick: mode-dependent (resize action area, adjust size/weight values, scale splines); Y axis scrolls spline list when pointing at it
 - Translate action (default action regardless of mode, when the trigger isn't used by the Draw mode):
 	- Controllers should display a partially transparent sphere at the tip of the controller (action area)
 	- Action area size should be adjustable using the left and right (X axis) of the joystick on that controller (pressing left = grow smaller, pressing right = grow larger, with the distance of the joystick determining how quickly the sphere will shrink or expand, stopping at a minimum of 0.01 unit (0.01m), and a maximum of 1 unit (1m), and starting with a default of 0.1 units)
+	- Action area size persists per-controller and is saved with the project data
 	- Action area size should NOT be adjustable with the joystick when a spline or point is intersecting with it, allowing for other modes to operate as expected during editing
 	- Action area should highlight when a valid control point is within the diameter of the sphere (start or end of any spline, can use spherical collision, intersection, point falloff, or whatever method is most native and efficient in Godot)
 	- Any spline (in Move mode) or control point(s) (in Size, Weight, and special Extrude cases) that intersect with the action area of a controller should move with the controller when the trigger is depressed, and be saved in the new location when the trigger is released
@@ -73,7 +83,9 @@ Controls:
 	- Same controller visual and action area as the Translate action (partially transparent sphere representing the maximum draw size)
 	- Joystick left/right adjusts the maximum draw size (same controls and range as the action area: min 0.01, max 1 unit, default 0.1 units)
 	- Pull trigger to draw spline using either controller (controllers should operate independently, so two different splines can be created at the same time if desired)
-	- The drawn spline should smoothly follow controller path, strategically placing control points outside of that path to generate a NURBS spline that's smooth and not too dense (for example, if the user draws a circle, the spline control points should be placed in positions, such as a larger octagon, so that the resulting spline matches the user's drawn path)
+	- The drawn spline should smoothly follow controller path, using a smart point placement algorithm that predicts where control points need to be placed based on the direction and curvature of the user's motion, placing them at the right intervals to mimic the motion without capturing every jittering detail; the goal is beautifully curved NURBS lines that follow the user's traced path
+	- Point placement density is controlled by the "Curve Accuracy" slider in the panel; higher accuracy = more points and tighter path following, lower accuracy = fewer points and smoother curves
+	- If a suitable open source algorithm exists, it should be used; otherwise a custom algorithm should be developed
 	- The trigger value should be used to drive the size value of the spline control points; mapping button pressure value to a 0.01 to the current maximum draw size floating point value range
 	- Cyclic always defaults to off when drawing a new spline
 	- Minimum viable spline length must match the size of the drawing tool (action area); anything shorter should be ignored
@@ -81,7 +93,7 @@ Controls:
 	- Splines are expected to have fairly sparse points for smooth results; if fewer than 4 control points are generated, the Order U should be soft-clamped to the number of points until more are added; Order U is only hard-clamped during .blend export, where it must be no more than the total number of control points
 - Extrude:
 	- Same controller visual and action area as the Translate action
-	- When a valid control point is active within the action area, pulling the trigger and moving the controller will extrude a new control point
+	- When valid control points (start or end points of any spline) are within the action area, pulling the trigger and moving the controller will extrude new control points from all of them simultaneously
 	- If a non-valid control point is hovered (any point that's not a start or end point of a spline), the standard translate action should be used instead (click and drag with the controller trigger to translate the control point)
 - Size:
 	- Same controller visual and action area as the Translate action
@@ -106,9 +118,11 @@ Haptic Feedback:
 
 Spline data:
 - Data should be stored internally in the simplest way possible, ideally just spline index (no need for naming splines), order U, and resolution U values, and for each control point in that spline, project space XYZ coordinates, the size value, and the weight value
+- Per-controller action area sizes should be saved with the project data
 - Edits should be saved automatically when the edit is "applied" (when the trigger releases after drawing, when the trigger is released after extruding, translating, size, or weight)
 
 Undo/Redo:
+- Undo and redo are suppressed while the trigger or grip button is active on either controller
 - Undo stages match autosave events (any change committed on trigger release)
 - Implementation: each autosave writes a new incrementally-named file; undo steps back through previous autosave files, redo steps forward
 - Maximum undo steps configurable in settings (default 32); older files beyond this limit are cleaned up
@@ -116,6 +130,8 @@ Undo/Redo:
 
 Dynamic spline mesh:
 - Splines should be visualised as an extruded mesh with half-sphere end caps, ideally including while drawing/editing operations are underway
+- The mesh preview should always update in realtime during all editing operations
+- When a spline is cyclic, end caps should not be used (the mesh loops)
 - Spline visual should have adjustable resolution, defaulting to 8 edges
 
 Output .blend file:
@@ -133,14 +149,17 @@ Data Integrity:
 
 # Validation Criteria
 
+## General Principles
+- [ ] Native OS features used where available (folder picker, text entry, etc.)
+
 ## App Launch / Project List
 - [ ] App opens in passthrough mode with no virtual environment
 - [ ] Panel displays list of existing projects and option to create new
 - [ ] New projects are named with date/time format YYYY-MM-DD-HH-MM
-- [ ] Each project has a rename button that opens platform text entry
+- [ ] Each project has a rename button that opens native platform text entry
 - [ ] Each project has a delete button that opens a confirmation dialogue
 - [ ] Settings sub-panel opens from settings button
-- [ ] Settings includes folder selector for .blend export location
+- [ ] Settings includes folder selector (native OS dialogue) for .blend export location
 - [ ] Settings includes undo step count (default 32)
 - [ ] Settings includes control panel side preference (left or right)
 - [ ] First launch prompts for export location if default (Documents) is unavailable
@@ -152,16 +171,22 @@ Data Integrity:
 - [ ] Grip button while intersecting grabs and repositions the panel
 - [ ] Panel grab uses same mechanic as project space movement
 - [ ] Panel remains in repositioned location until manually moved again
+- [ ] Menu button resets panel position (along with project view)
 
 ## Project Space
 - [ ] Visual X, Y, Z axis displayed from -1 to +1 range
 - [ ] 1 unit = 1 meter scale is correct
 - [ ] Panel displays save/close, undo, redo, and reset view buttons
 - [ ] Mode selection shows all modes in a row; only one active at a time
+- [ ] New project or empty project defaults to Draw mode
+- [ ] Existing project with splines defaults to Move mode
 - [ ] Default mode falls back to Translate interaction
 - [ ] Spline list displays with delete buttons for each spline (no confirmation needed; undo available)
+- [ ] Empty spline list shows "add a spline by drawing" text
+- [ ] Spline list scrollable via joystick Y axis while pointing at list
 - [ ] Clicking a spline list entry selects it; latest created or manually selected spline remains active
 - [ ] Selected spline shows Order U (default 4), Resolution U (default 8), and Cyclic toggle
+- [ ] When Draw mode is selected, Curve Accuracy slider appears in panel
 
 ## Grip Controls (Project Space Navigation)
 - [ ] Single grip: move and rotate project space with controller motion
@@ -170,6 +195,11 @@ Data Integrity:
 - [ ] Navigation transforms are view-only; project data coordinates unchanged
 - [ ] Navigation resets when a project is opened
 - [ ] Navigation state is not saved with project data
+
+## Reset View
+- [ ] Reset view button resets position, rotation, and scale of project space
+- [ ] Menu button (left controller) resets project view and control panel position
+- [ ] Reset does not affect project data
 
 ## Control Point Visualization
 - [ ] Points displayed as small cubes aligned to project space (rotate with project, not XR space)
@@ -192,14 +222,17 @@ Data Integrity:
 - [ ] Resize rate scales with joystick distance from center
 - [ ] Joystick resizing disabled when a spline or point intersects action area
 - [ ] Sphere highlights when a valid control point is within its diameter
+- [ ] Action area size persists per-controller
+- [ ] Action area size saved with project data
 
 ## Button Mappings
 - [ ] Trigger: primary action (draw, extrude, translate, panel interaction)
 - [ ] Grip: grab/move project space or control panel
-- [ ] X or A: undo
-- [ ] Y or B: redo
+- [ ] X or A: undo (suppressed while trigger or grip active on either controller)
+- [ ] Y or B: redo (suppressed while trigger or grip active on either controller)
 - [ ] Y or B while trigger held with point in active area: delete control point
-- [ ] Joystick: mode-dependent behaviour
+- [ ] Menu button (left controller): reset project view and panel position
+- [ ] Joystick: mode-dependent behaviour; Y axis scrolls spline list when pointing at it
 
 ## Translate (Default Action)
 - [ ] Intersecting control point(s) move with controller while trigger held
@@ -217,7 +250,9 @@ Data Integrity:
 - [ ] Pulling trigger begins drawing a new spline
 - [ ] Both controllers can draw independently and simultaneously
 - [ ] Spline smoothly follows controller path
-- [ ] Control points placed strategically outside drawn path for smooth NURBS result
+- [ ] Point placement algorithm predicts optimal positions based on motion direction and curvature
+- [ ] Algorithm avoids capturing jitter; produces smooth NURBS curves
+- [ ] Curve Accuracy slider controls point density (higher = tighter fit, lower = smoother)
 - [ ] Trigger pressure maps to control point size value (0.01 to current max draw size)
 - [ ] New drawn splines default to non-cyclic
 - [ ] Splines shorter than action area size are ignored
@@ -226,23 +261,26 @@ Data Integrity:
 - [ ] Warning popup is grabbable and moveable like all panels
 - [ ] Splines with fewer than 4 points: Order U soft-clamped to point count
 - [ ] Order U only hard-clamped (to point count) during .blend export
+- [ ] Mesh preview updates in realtime while drawing
 
 ## Extrude Mode
-- [ ] Valid control point (start/end of spline) highlighted in action area
-- [ ] Pulling trigger on valid point extrudes a new control point
-- [ ] Moving controller while trigger held positions the new point
+- [ ] Valid control points (start/end of any spline) highlighted in action area
+- [ ] Pulling trigger extrudes new points from all valid endpoints in the active area simultaneously
+- [ ] Moving controller while trigger held positions the new points
 - [ ] Non-valid points (mid-spline) fall back to translate behavior
 
 ## Size Mode
 - [ ] Joystick -X/-Y decreases size of intersecting control point(s)
 - [ ] Joystick +X/+Y increases size of intersecting control point(s)
 - [ ] Trigger held: translates point (joystick changes size only, not group scale)
+- [ ] Mesh preview updates in realtime as size changes
 
 ## Weight Mode
 - [ ] Joystick -X/-Y decreases weight of intersecting control point(s)
 - [ ] Joystick +X/+Y increases weight of intersecting control point(s)
 - [ ] Weight range: minimum 0.001, maximum 10.0
 - [ ] Trigger held: translates point (joystick changes weight only)
+- [ ] Mesh preview updates in realtime as weight changes
 
 ## Deleting Control Points
 - [ ] Y or B button while trigger held and point in active area removes the point
@@ -250,6 +288,7 @@ Data Integrity:
 - [ ] Deleted point can be restored via undo
 
 ## Undo/Redo
+- [ ] Undo and redo suppressed while trigger or grip active on either controller
 - [ ] Undo stages match autosave events (trigger release commits)
 - [ ] Each autosave writes a new incrementally-named file
 - [ ] Undo steps back through previous files; redo steps forward
@@ -261,12 +300,14 @@ Data Integrity:
 
 ## Spline Data & Auto-Save
 - [ ] Data stored as: spline index, order U, resolution U, and per-point XYZ + size + weight
+- [ ] Per-controller action area sizes saved with project data
 - [ ] Auto-save triggers on trigger release (after draw, extrude, translate, size, weight, or delete)
 - [ ] Data persists correctly when reopening a project
 
 ## Dynamic Spline Mesh Preview
 - [ ] Splines visualized as extruded mesh with half-sphere end caps
-- [ ] Preview updates during drawing/editing operations
+- [ ] Cyclic splines: no end caps (mesh loops)
+- [ ] Preview updates in realtime during all editing operations
 - [ ] Mesh resolution adjustable, defaulting to 8 edges
 
 ## .blend Export
