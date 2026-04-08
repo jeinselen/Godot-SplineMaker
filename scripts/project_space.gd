@@ -22,7 +22,7 @@ func _create_test_splines() -> void:
 	s_curve.add_point(Vector3(0.5, 0.5, 0.25), 0.03)
 	s_curve.add_point(Vector3(0.75, 0.5, 0.25), 0.02)
 	s_curve.add_point(Vector3(1.0, 0.5, 0.0), 0.01)
-	_add_spline(s_curve)
+	_add_spline(s_curve, true)
 
 	# Test 3: Cyclic loop (square-ish shape, order 3)
 	var loop := SplineData.new()
@@ -42,10 +42,12 @@ func _create_test_splines() -> void:
 	_add_spline(minimal)
 
 
-func _add_spline(data: SplineData) -> void:
+func _add_spline(data: SplineData, active: bool = false) -> void:
 	var node := SplineNode.new()
 	add_child(node)
 	node.set_data(data)
+	if active:
+		node.set_active(true)
 
 
 func _create_axis_display() -> void:

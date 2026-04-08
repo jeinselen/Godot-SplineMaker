@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://6s7psdiak51a" path="res://scripts/xr_start.gd" id="1"]
 [ext_resource type="Script" uid="uid://bph2s5nav1kxe" path="res://scripts/project_space.gd" id="2"]
 [ext_resource type="Script" uid="uid://d0r3vkm8qp5nt" path="res://scripts/navigation.gd" id="3"]
+[ext_resource type="Script" uid="uid://cxq7m2k8f4ypb" path="res://scripts/interaction.gd" id="4"]
 
 [sub_resource type="StandardMaterial3D" id="Material_1"]
 transparency = 1
@@ -46,3 +47,6 @@ script = ExtResource("2")
 
 [node name="Navigation" type="Node3D" parent="."]
 script = ExtResource("3")
+
+[node name="Interaction" type="Node3D" parent="."]
+script = ExtResource("4")

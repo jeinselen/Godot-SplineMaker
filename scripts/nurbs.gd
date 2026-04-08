@@ -224,9 +224,9 @@ static func _eval_curve_cyclic(
 
 	var knots := _knot_vector_uniform(n_ext, k)
 
-	# Valid parameter domain for the cyclic curve
+	# Valid parameter domain: k-1 to k-1+n spans the full loop (n knot intervals)
 	var t_start := float(k - 1)
-	var t_end := float(n)
+	var t_end := float(k - 1 + n)
 	var segments := maxi(1, n * resolution)
 
 	var result := PackedVector3Array()
@@ -260,7 +260,7 @@ static func _eval_sizes_cyclic(
 	var knots := _knot_vector_uniform(n_ext, k)
 
 	var t_start := float(k - 1)
-	var t_end := float(n)
+	var t_end := float(k - 1 + n)
 	var segments := maxi(1, n * resolution)
 
 	var result := PackedFloat32Array()
