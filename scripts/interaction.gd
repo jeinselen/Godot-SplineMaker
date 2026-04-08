@@ -47,9 +47,17 @@ var _right_grip_initial_pos: Vector3 = Vector3.ZERO
 # Snapshot of grabbed points: Array of {spline: SplineNode, index: int, initial_pos: Vector3}
 var _left_grip_grabbed: Array[Dictionary] = []
 var _right_grip_grabbed: Array[Dictionary] = []
+var _left_grip_initial_basis: Basis = Basis.IDENTITY
+var _right_grip_initial_basis: Basis = Basis.IDENTITY
+var _left_grip_scale: float = 1.0
+var _right_grip_scale: float = 1.0
 
 # Warning popup state
 var _short_draw_warned: bool = false
+
+const GRIP_SCALE_SPEED := 1.5
+const GRIP_SCALE_MIN := 0.05
+const GRIP_SCALE_MAX := 20.0
 
 const HAPTIC_TAP_AMPLITUDE := 0.3
 const HAPTIC_TAP_DURATION := 0.05
@@ -92,11 +100,21 @@ func _process(delta: float) -> void:
 	if not _right_drawing:
 		_update_hover(CONTROLLER_ID_RIGHT, right_controller, right_action_area)
 
-	# Grip-translate: move grabbed points with controller
+	# Scale grabbed points via joystick Y while grip is active
 	if _left_grip_translating:
-		_update_grip_translate(CONTROLLER_ID_LEFT)
+		var joy_y := _left_joystick.y
+		if absf(joy_y) >= 0.1:
+			_left_grip_scale = clampf(_left_grip_scale * (1.0 + joy_y * GRIP_SCALE_SPEED * delta), GRIP_SCALE_MIN, GRIP_SCALE_MAX)
 	if _right_grip_translating:
-		_update_grip_translate(CONTROLLER_ID_RIGHT)
+		var joy_y := _right_joystick.y
+		if absf(joy_y) >= 0.1:
+			_right_grip_scale = clampf(_right_grip_scale * (1.0 + joy_y * GRIP_SCALE_SPEED * delta), GRIP_SCALE_MIN, GRIP_SCALE_MAX)
+
+	# Grip-transform: rotate, scale, and translate grabbed points with controller
+	if _left_grip_translating:
+		_update_grip_transform(CONTROLLER_ID_LEFT)
+	if _right_grip_translating:
+		_update_grip_transform(CONTROLLER_ID_RIGHT)
 
 	# Draw mode: update strokes
 	if _left_drawing:
@@ -390,8 +408,10 @@ func _on_grip_pressed(controller_id: int) -> void:
 
 	var controller := left_controller if controller_id == CONTROLLER_ID_LEFT else right_controller
 
-	# Snapshot controller position in project-local space
+	# Snapshot controller position and orientation in project-local space
 	var grip_local_pos := project_space.global_transform.affine_inverse() * controller.global_position
+	var ps_inv_basis := project_space.global_transform.basis.inverse()
+	var grip_local_basis := ps_inv_basis * controller.global_transform.basis
 
 	# Snapshot all hovered points
 	var grabbed: Array[Dictionary] = []
@@ -408,10 +428,14 @@ func _on_grip_pressed(controller_id: int) -> void:
 	if controller_id == CONTROLLER_ID_LEFT:
 		_left_grip_translating = true
 		_left_grip_initial_pos = grip_local_pos
+		_left_grip_initial_basis = grip_local_basis
+		_left_grip_scale = 1.0
 		_left_grip_grabbed = grabbed
 	else:
 		_right_grip_translating = true
 		_right_grip_initial_pos = grip_local_pos
+		_right_grip_initial_basis = grip_local_basis
+		_right_grip_scale = 1.0
 		_right_grip_grabbed = grabbed
 
 
@@ -427,23 +451,34 @@ func _on_grip_released(controller_id: int) -> void:
 
 	if controller_id == CONTROLLER_ID_LEFT:
 		_left_grip_translating = false
+		_left_grip_initial_basis = Basis.IDENTITY
+		_left_grip_scale = 1.0
 		_left_grip_grabbed = []
 	else:
 		_right_grip_translating = false
+		_right_grip_initial_basis = Basis.IDENTITY
+		_right_grip_scale = 1.0
 		_right_grip_grabbed = []
 
 
-func _update_grip_translate(controller_id: int) -> void:
+func _update_grip_transform(controller_id: int) -> void:
 	var controller := left_controller if controller_id == CONTROLLER_ID_LEFT else right_controller
-	var initial_pos := _left_grip_initial_pos if controller_id == CONTROLLER_ID_LEFT else _right_grip_initial_pos
-	var grabbed := _left_grip_grabbed if controller_id == CONTROLLER_ID_LEFT else _right_grip_grabbed
+	var initial_pos   := _left_grip_initial_pos   if controller_id == CONTROLLER_ID_LEFT else _right_grip_initial_pos
+	var initial_basis := _left_grip_initial_basis if controller_id == CONTROLLER_ID_LEFT else _right_grip_initial_basis
+	var grip_scale    := _left_grip_scale         if controller_id == CONTROLLER_ID_LEFT else _right_grip_scale
+	var grabbed       := _left_grip_grabbed       if controller_id == CONTROLLER_ID_LEFT else _right_grip_grabbed
 
 	var current_local_pos := project_space.global_transform.affine_inverse() * controller.global_position
-	var delta := current_local_pos - initial_pos
+	var translate_delta := current_local_pos - initial_pos
+
+	var ps_inv_basis := project_space.global_transform.basis.inverse()
+	var current_local_basis := ps_inv_basis * controller.global_transform.basis
+	var rotation_delta := current_local_basis * initial_basis.inverse()
 
 	for entry in grabbed:
 		var spline_node := entry["spline"] as SplineNode
 		var idx: int = entry["index"]
 		var original: Vector3 = entry["initial_pos"]
-		spline_node.data.points[idx] = original + delta
+		var offset := original - initial_pos
+		spline_node.data.points[idx] = initial_pos + rotation_delta * offset * grip_scale + translate_delta
 		spline_node.mark_dirty()
