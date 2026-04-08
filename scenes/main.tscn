@@ -1,9 +1,9 @@
 [gd_scene format=3 uid="uid://f42e54m26p33"]
 
 [ext_resource type="Script" uid="uid://6s7psdiak51a" path="res://scripts/xr_start.gd" id="1"]
-[ext_resource type="Script" uid="uid://bph2s5nav1kxe" path="res://scripts/project_space.gd" id="2"]
-[ext_resource type="Script" uid="uid://d0r3vkm8qp5nt" path="res://scripts/navigation.gd" id="3"]
-[ext_resource type="Script" uid="uid://cxq7m2k8f4ypb" path="res://scripts/interaction.gd" id="4"]
+[ext_resource type="Script" uid="uid://448v3tmbnr84" path="res://scripts/project_space.gd" id="2"]
+[ext_resource type="Script" uid="uid://cxty16wgd7pct" path="res://scripts/navigation.gd" id="3"]
+[ext_resource type="Script" uid="uid://dwxtn5p34mthq" path="res://scripts/interaction.gd" id="4"]
 
 [sub_resource type="StandardMaterial3D" id="Material_1"]
 transparency = 1
@@ -41,12 +41,12 @@ pose = &"aim"
 material_override = SubResource("Material_1")
 mesh = SubResource("SphereMesh_1")
 
-[node name="ProjectSpace" type="Node3D" parent="."]
+[node name="ProjectSpace" type="Node3D" parent="." unique_id=904985689]
 unique_name_in_owner = true
 script = ExtResource("2")
 
-[node name="Navigation" type="Node3D" parent="."]
+[node name="Navigation" type="Node3D" parent="." unique_id=1034818268]
 script = ExtResource("3")
 
-[node name="Interaction" type="Node3D" parent="."]
+[node name="Interaction" type="Node3D" parent="." unique_id=1126405449]
 script = ExtResource("4")
