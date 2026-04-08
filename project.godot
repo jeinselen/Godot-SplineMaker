@@ -31,6 +31,10 @@ textures/vram_compression/import_etc2_astc=true
 [xr]
 
 openxr/enabled=true
+openxr/environment_blend_mode=2
 openxr/foveation_level=3
 openxr/foveation_dynamic=true
 shaders/enabled=true
+openxr/extensions/htc/passthrough=true
+openxr/extensions/meta/passthrough=true
+openxr/extensions/androidxr/passthrough_camera_state=true

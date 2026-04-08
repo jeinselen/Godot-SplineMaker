@@ -26,10 +26,7 @@ func _ready() -> void:
 		elif int(ProjectSettings.get_setting("xr/openxr/foveation_level")) == 0:
 			push_warning("OpenXR: Recommend setting foveation level to High.")
 
-		# Configure passthrough
-		_enable_passthrough()
-
-		# Connect session lifecycle signals
+		# Connect session lifecycle signals (passthrough enabled after session begins)
 		xr_interface.session_begun.connect(_on_openxr_session_begun)
 		xr_interface.session_visible.connect(_on_openxr_visible_state)
 		xr_interface.session_focussed.connect(_on_openxr_focused_state)
@@ -52,6 +49,7 @@ func _enable_passthrough() -> void:
 		world_environment.environment = Environment.new()
 
 	var supported_modes: Array = xr_interface.get_supported_environment_blend_modes()
+	print("Passthrough: Supported blend modes = ", supported_modes)
 	if XRInterface.XR_ENV_BLEND_MODE_ALPHA_BLEND in supported_modes:
 		xr_interface.environment_blend_mode = XRInterface.XR_ENV_BLEND_MODE_ALPHA_BLEND
 		get_viewport().transparent_bg = true
@@ -80,6 +78,11 @@ func _setup_controller_signals(controller: XRController3D, label: String) -> voi
 
 
 func _on_openxr_session_begun() -> void:
+	print("OpenXR: Session begun.")
+
+	# Configure passthrough now that the session is active
+	_enable_passthrough()
+
 	# Request the highest available refresh rate up to maximum_refresh_rate
 	var current_rate: float = xr_interface.get_display_refresh_rate()
 	if current_rate > 0:
