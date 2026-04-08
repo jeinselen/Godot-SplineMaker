@@ -308,16 +308,16 @@ user://projects/
    - Confirm NURBS attributes are correct
 
 ### Milestone Test (MVP Acceptance)
-- [ ] User can create a new project on Quest 3
-- [ ] User can draw one or more splines in VR
-- [ ] Closing the project exports JSON to the configured directory
-- [ ] Running the Python script produces a valid .blend file
+- [x] User can create a new project on Quest 3
+- [x] User can draw one or more splines in VR
+- [x] Closing the project exports JSON to the configured directory
+- [x] Running the Python script produces a valid .blend file
 - [ ] .blend opens in Blender 4.5+ without errors
 - [ ] Splines appear with correct positions, sizes, weights
 - [ ] Geometry nodes from template generate mesh from the splines
 - [ ] Non-cyclic splines have Endpoint enabled
 - [ ] Order U, Resolution U values match what was set in VR
-- [ ] Export failure shows error popup in VR
+- [x] Export failure shows error popup in VR
 
 ---
 

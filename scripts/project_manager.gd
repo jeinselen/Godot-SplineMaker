@@ -11,9 +11,16 @@ const PROJECTS_ROOT := "user://projects/"
 const META_FILE := "meta.json"
 const SAVE_PREFIX := "save_"
 const SAVE_EXT := ".json"
+const EXPORT_FILE := "splines.json"
 const JSON_VERSION := 1
 
 @export var max_undo_steps: int = 32
+## Directory where exported JSON files are written on project close.
+## Defaults to user://exports/ on Quest 3; overridden by settings.
+@export var export_directory: String = ""
+
+signal export_succeeded(path: String)
+signal export_failed(error: String)
 
 var _project_dir: String = ""
 var _save_counter: int = 0        # total saves ever written; monotonically increases
@@ -22,7 +29,11 @@ var _undo_index: int = -1         # index into _undo_stack of the currently load
 var _is_restoring: bool = false   # suppresses autosave during undo/redo restore
 
 
+const POPUP_DISMISS_TIME := 30.0
+
 func _ready() -> void:
+	export_failed.connect(_on_export_failed)
+	export_succeeded.connect(_on_export_succeeded)
 	_open_or_create_project()
 
 
@@ -284,3 +295,105 @@ func _load_save_file(file_num: int) -> void:
 		push_error("ProjectManager: JSON parse failed for " + path)
 		return
 	_restore_state(parsed)
+
+
+# --- Project close & JSON export ---
+
+## Returns the resolved export directory, creating it if needed.
+func _get_export_dir() -> String:
+	var dir := export_directory
+	if dir.is_empty():
+		# Default: Documents/Splines/ — on Quest 3 this resolves to shared storage.
+		# Fall back to user://exports/ if OS path unavailable.
+		var docs := OS.get_system_dir(OS.SYSTEM_DIR_DOCUMENTS)
+		if docs.is_empty():
+			dir = "user://exports/"
+		else:
+			dir = docs.path_join("Splines")
+	# Ensure trailing slash
+	if not dir.ends_with("/"):
+		dir += "/"
+	return dir
+
+
+## Closes the current project: exports a clean JSON file to the export directory,
+## then returns to the project list (or quits — caller decides).
+## Returns true on successful export, false on failure.
+func close_project() -> bool:
+	var success := export_json()
+	return success
+
+
+## Writes the current spline state as a clean JSON file to the export directory.
+## The file is named after the project (e.g. "2026-04-08-14-30.json").
+## Returns true on success.
+func export_json() -> bool:
+	var export_dir := _get_export_dir()
+
+	# Create the export directory
+	var err := DirAccess.make_dir_recursive_absolute(export_dir)
+	if err != OK and err != ERR_ALREADY_EXISTS:
+		var msg := "Could not create export directory: %s (error %d)" % [export_dir, err]
+		push_error("ProjectManager: " + msg)
+		export_failed.emit(msg)
+		return false
+
+	# Build export filename from the project folder name
+	var project_name: String = _project_dir.get_base_dir().get_file()
+	if project_name.is_empty():
+		project_name = "export"
+	var export_path := export_dir + project_name + ".json"
+
+	# Serialize current state (same format used by autosave)
+	var state := _serialize_state()
+
+	# Write the file
+	var fa := FileAccess.open(export_path, FileAccess.WRITE)
+	if not fa:
+		var msg := "Could not write export file: %s" % export_path
+		push_error("ProjectManager: " + msg)
+		export_failed.emit(msg)
+		return false
+
+	fa.store_string(JSON.stringify(state, "\t"))
+	fa.close()
+
+	print("ProjectManager: exported JSON to " + export_path)
+	export_succeeded.emit(export_path)
+	return true
+
+
+# --- Export popups ---
+
+func _on_export_succeeded(path: String) -> void:
+	_show_popup("Export saved:\n" + path.get_file(), Color(0.3, 1.0, 0.5))
+
+
+func _on_export_failed(error: String) -> void:
+	_show_popup("Export failed:\n" + error, Color(1.0, 0.3, 0.3))
+
+
+func _show_popup(text: String, color: Color) -> void:
+	var label := Label3D.new()
+	label.text = text
+	label.font_size = 28
+	label.pixel_size = 0.001
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.modulate = color
+	label.outline_size = 8
+
+	# Position in front of the camera if available, otherwise at origin
+	var camera := get_viewport().get_camera_3d()
+	if camera:
+		label.global_position = camera.global_position - camera.global_transform.basis.z * 1.0
+	else:
+		label.global_position = Vector3(0, 1.5, -1.0)
+
+	get_tree().root.add_child(label)
+
+	# Auto-dismiss after 30 seconds
+	var timer := get_tree().create_timer(POPUP_DISMISS_TIME)
+	timer.timeout.connect(func() -> void:
+		if is_instance_valid(label):
+			label.queue_free()
+	)
