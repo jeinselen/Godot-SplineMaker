@@ -8,12 +8,20 @@
 
 config_version=5
 
+[accessibility]
+
+general/updates_per_second=90
+
 [application]
 
 config/name="SplineMaker"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.6", "Mobile")
 config/icon="res://icon.svg"
+
+[filesystem]
+
+import/blender/enabled=false
 
 [rendering]
 

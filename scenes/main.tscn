@@ -1,37 +1,37 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene format=3 uid="uid://f42e54m26p33"]
 
-[ext_resource type="Script" path="res://scripts/xr_start.gd" id="1"]
+[ext_resource type="Script" uid="uid://6s7psdiak51a" path="res://scripts/xr_start.gd" id="1"]
+
+[sub_resource type="StandardMaterial3D" id="Material_1"]
+transparency = 1
+albedo_color = Color(0.4, 0.7, 1, 0.8)
 
 [sub_resource type="SphereMesh" id="SphereMesh_1"]
 radius = 0.02
 height = 0.04
 
-[sub_resource type="StandardMaterial3D" id="Material_1"]
-albedo_color = Color(0.4, 0.7, 1.0, 0.8)
-transparency = 1
-
-[node name="Main" type="Node3D"]
+[node name="Main" type="Node3D" unique_id=233243190]
 script = ExtResource("1")
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=354527766]
 
-[node name="XROrigin3D" type="XROrigin3D" parent="."]
+[node name="XROrigin3D" type="XROrigin3D" parent="." unique_id=1760046485]
 current = true
 
-[node name="XRCamera3D" type="XRCamera3D" parent="XROrigin3D"]
+[node name="XRCamera3D" type="XRCamera3D" parent="XROrigin3D" unique_id=590917505]
 
-[node name="LeftController" type="XRController3D" parent="XROrigin3D"]
+[node name="LeftController" type="XRController3D" parent="XROrigin3D" unique_id=1230531634]
 tracker = &"left_hand"
 pose = &"aim"
 
-[node name="ControllerMesh" type="MeshInstance3D" parent="XROrigin3D/LeftController"]
-mesh = SubResource("SphereMesh_1")
+[node name="ControllerMesh" type="MeshInstance3D" parent="XROrigin3D/LeftController" unique_id=1946177132]
 material_override = SubResource("Material_1")
+mesh = SubResource("SphereMesh_1")
 
-[node name="RightController" type="XRController3D" parent="XROrigin3D"]
+[node name="RightController" type="XRController3D" parent="XROrigin3D" unique_id=955064581]
 tracker = &"right_hand"
 pose = &"aim"
 
-[node name="ControllerMesh" type="MeshInstance3D" parent="XROrigin3D/RightController"]
-mesh = SubResource("SphereMesh_1")
+[node name="ControllerMesh" type="MeshInstance3D" parent="XROrigin3D/RightController" unique_id=571418254]
 material_override = SubResource("Material_1")
+mesh = SubResource("SphereMesh_1")
