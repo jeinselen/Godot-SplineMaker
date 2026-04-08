@@ -36,6 +36,17 @@ var _left_drawing: bool = false
 var _right_drawing: bool = false
 var _left_stroke: DrawStroke = null
 var _right_stroke: DrawStroke = null
+var _left_trigger_floor: float = 0.0
+var _right_trigger_floor: float = 0.0
+
+# Grip-translate state (per controller): grip moves hovered points instead of project space
+var _left_grip_translating: bool = false
+var _right_grip_translating: bool = false
+var _left_grip_initial_pos: Vector3 = Vector3.ZERO
+var _right_grip_initial_pos: Vector3 = Vector3.ZERO
+# Snapshot of grabbed points: Array of {spline: SplineNode, index: int, initial_pos: Vector3}
+var _left_grip_grabbed: Array[Dictionary] = []
+var _right_grip_grabbed: Array[Dictionary] = []
 
 # Warning popup state
 var _short_draw_warned: bool = false
@@ -81,16 +92,26 @@ func _process(delta: float) -> void:
 	if not _right_drawing:
 		_update_hover(CONTROLLER_ID_RIGHT, right_controller, right_action_area)
 
+	# Grip-translate: move grabbed points with controller
+	if _left_grip_translating:
+		_update_grip_translate(CONTROLLER_ID_LEFT)
+	if _right_grip_translating:
+		_update_grip_translate(CONTROLLER_ID_RIGHT)
+
 	# Draw mode: update strokes
 	if _left_drawing:
 		_update_stroke(CONTROLLER_ID_LEFT)
 	if _right_drawing:
 		_update_stroke(CONTROLLER_ID_RIGHT)
 
-	# Haptic buzz while trigger held and editing
+	# Haptic buzz while actively editing (trigger or grip translate)
 	if _left_trigger_active and (not _left_hover_set.is_empty() or _left_drawing):
 		left_controller.trigger_haptic_pulse("haptic", 0.0, HAPTIC_BUZZ_AMPLITUDE, HAPTIC_BUZZ_DURATION, 0.0)
 	if _right_trigger_active and (not _right_hover_set.is_empty() or _right_drawing):
+		right_controller.trigger_haptic_pulse("haptic", 0.0, HAPTIC_BUZZ_AMPLITUDE, HAPTIC_BUZZ_DURATION, 0.0)
+	if _left_grip_translating:
+		left_controller.trigger_haptic_pulse("haptic", 0.0, HAPTIC_BUZZ_AMPLITUDE, HAPTIC_BUZZ_DURATION, 0.0)
+	if _right_grip_translating:
 		right_controller.trigger_haptic_pulse("haptic", 0.0, HAPTIC_BUZZ_AMPLITUDE, HAPTIC_BUZZ_DURATION, 0.0)
 
 
@@ -171,6 +192,13 @@ func _begin_drawing(controller_id: int) -> void:
 	var pos := project_space.global_transform.affine_inverse() * controller.global_position
 	var size_val := _get_draw_size(controller_id, action_area)
 
+	# Capture the trigger value at click time as the floor for remapping
+	var trigger_val := _left_trigger_value if controller_id == CONTROLLER_ID_LEFT else _right_trigger_value
+	if controller_id == CONTROLLER_ID_LEFT:
+		_left_trigger_floor = trigger_val
+	else:
+		_right_trigger_floor = trigger_val
+
 	var stroke := DrawStroke.new()
 	stroke.smoothing = curve_accuracy
 	stroke.begin(pos, size_val, project_space)
@@ -242,9 +270,19 @@ func _clear_draw_state(controller_id: int) -> void:
 
 func _get_draw_size(controller_id: int, action_area: ActionArea) -> float:
 	var trigger_val := _left_trigger_value if controller_id == CONTROLLER_ID_LEFT else _right_trigger_value
+	var trigger_floor := _left_trigger_floor if controller_id == CONTROLLER_ID_LEFT else _right_trigger_floor
+
+	# Remap from [floor, 1.0] to [0.0, 1.0] so full range is usable after click
+	var range_size := 1.0 - trigger_floor
+	var remapped := clampf((trigger_val - trigger_floor) / range_size, 0.0, 1.0) if range_size > 0.01 else 0.0
+
+	# Power curve for more control at the low end (square gives ~10% size at ~32% travel)
+	var curved := remapped * remapped
+
 	var ps_scale := project_space.global_transform.basis.get_scale().x
 	var local_radius := action_area.radius / ps_scale if ps_scale > 0.0001 else action_area.radius
-	return lerpf(0.01, local_radius, clampf(trigger_val, 0.0, 1.0))
+	var min_size := local_radius * 0.01
+	return lerpf(min_size, local_radius, curved)
 
 
 func _show_short_draw_warning(controller_id: int) -> void:
@@ -272,11 +310,15 @@ func _show_short_draw_warning(controller_id: int) -> void:
 func _on_button_pressed(button_name: String, controller_id: int) -> void:
 	if button_name == "trigger_click":
 		_on_trigger_pressed(controller_id)
+	elif button_name == "grip_click":
+		_on_grip_pressed(controller_id)
 
 
 func _on_button_released(button_name: String, controller_id: int) -> void:
 	if button_name == "trigger_click":
 		_on_trigger_released(controller_id)
+	elif button_name == "grip_click":
+		_on_grip_released(controller_id)
 
 
 func _on_float_changed(input_name: String, value: float, controller_id: int) -> void:
@@ -328,3 +370,80 @@ func _on_trigger_released(controller_id: int) -> void:
 	var hover_set := _get_hover_set(controller_id)
 	for entry in hover_set:
 		(entry["spline"] as SplineNode).set_point_editing(entry["index"], false)
+
+
+# --- Grip-based point translation ---
+
+## Returns true if this controller's grip is being used to translate points
+## (so navigation.gd should not move the project space).
+func is_grip_translating(controller_id: int) -> bool:
+	if controller_id == CONTROLLER_ID_LEFT:
+		return _left_grip_translating
+	else:
+		return _right_grip_translating
+
+
+func _on_grip_pressed(controller_id: int) -> void:
+	var hover_set := _get_hover_set(controller_id)
+	if hover_set.is_empty():
+		return  # No hovered points — let navigation.gd handle the grip
+
+	var controller := left_controller if controller_id == CONTROLLER_ID_LEFT else right_controller
+
+	# Snapshot controller position in project-local space
+	var grip_local_pos := project_space.global_transform.affine_inverse() * controller.global_position
+
+	# Snapshot all hovered points
+	var grabbed: Array[Dictionary] = []
+	for entry in hover_set:
+		var spline_node := entry["spline"] as SplineNode
+		var idx: int = entry["index"]
+		grabbed.append({
+			"spline": spline_node,
+			"index": idx,
+			"initial_pos": spline_node.data.points[idx],
+		})
+		spline_node.set_point_editing(idx, true)
+
+	if controller_id == CONTROLLER_ID_LEFT:
+		_left_grip_translating = true
+		_left_grip_initial_pos = grip_local_pos
+		_left_grip_grabbed = grabbed
+	else:
+		_right_grip_translating = true
+		_right_grip_initial_pos = grip_local_pos
+		_right_grip_grabbed = grabbed
+
+
+func _on_grip_released(controller_id: int) -> void:
+	var is_translating := _left_grip_translating if controller_id == CONTROLLER_ID_LEFT else _right_grip_translating
+	if not is_translating:
+		return
+
+	# Clear editing state
+	var grabbed := _left_grip_grabbed if controller_id == CONTROLLER_ID_LEFT else _right_grip_grabbed
+	for entry in grabbed:
+		(entry["spline"] as SplineNode).set_point_editing(entry["index"], false)
+
+	if controller_id == CONTROLLER_ID_LEFT:
+		_left_grip_translating = false
+		_left_grip_grabbed = []
+	else:
+		_right_grip_translating = false
+		_right_grip_grabbed = []
+
+
+func _update_grip_translate(controller_id: int) -> void:
+	var controller := left_controller if controller_id == CONTROLLER_ID_LEFT else right_controller
+	var initial_pos := _left_grip_initial_pos if controller_id == CONTROLLER_ID_LEFT else _right_grip_initial_pos
+	var grabbed := _left_grip_grabbed if controller_id == CONTROLLER_ID_LEFT else _right_grip_grabbed
+
+	var current_local_pos := project_space.global_transform.affine_inverse() * controller.global_position
+	var delta := current_local_pos - initial_pos
+
+	for entry in grabbed:
+		var spline_node := entry["spline"] as SplineNode
+		var idx: int = entry["index"]
+		var original: Vector3 = entry["initial_pos"]
+		spline_node.data.points[idx] = original + delta
+		spline_node.mark_dirty()

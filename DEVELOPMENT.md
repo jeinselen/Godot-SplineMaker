@@ -65,15 +65,15 @@ user://projects/
    - If any input is missing on-device, customize the action map in the editor
 
 ### Milestone Test
-- [ ] App launches on Quest 3 in passthrough mode
-- [ ] Both controllers are tracked and visible
+- [x] App launches on Quest 3 in passthrough mode
+- [x] Both controllers are tracked and visible
 - [ ] Trigger pressure value (0.0–1.0) logged correctly
 - [ ] All button inputs register (grip, joystick, X/A, Y/B, menu)
-- [ ] Passthrough is clear (no black screen, no visual artifacts)
-- [ ] Determine renderer: Vulkan Mobile or Compatibility
+- [x] Passthrough is clear (no black screen, no visual artifacts)
+- [x] Determine renderer: Vulkan Mobile or Compatibility
 - [ ] Physics tick rate matches display refresh rate
 - [ ] App pauses when headset is removed, resumes when put back on
-- [ ] WorldEnvironment background is fully transparent (no colored tint)
+- [x] WorldEnvironment background is fully transparent (no colored tint)
 
 ---
 
@@ -97,13 +97,13 @@ user://projects/
    - Wire to menu button on left controller
 
 ### Milestone Test
-- [ ] XYZ axis visible in passthrough, correctly coloured
-- [ ] Single grip: project space moves and rotates with controller
-- [ ] Dual grip: project space moves, rotates, and scales
+- [x] XYZ axis visible in passthrough, correctly coloured
+- [x] Single grip: project space moves and rotates with controller
+- [x] Dual grip: project space moves, rotates, and scales
 - [ ] Scale responds correctly (closer = smaller)
 - [ ] Menu button resets view to default
-- [ ] Navigation does not modify any data (view-only transform)
-- [ ] Releasing grips leaves project space in last position
+- [x] Navigation does not modify any data (view-only transform)
+- [x] Releasing grips leaves project space in last position
 
 ---
 
@@ -131,12 +131,12 @@ user://projects/
    - Verify cyclic splines loop without caps
 
 ### Milestone Test
-- [ ] NURBS evaluation produces correct points for known inputs (compare against reference values)
-- [ ] Tube mesh renders with correct radius at each point
-- [ ] End caps are half-spheres, visually seamless
-- [ ] Cyclic splines loop correctly, no end caps
+- [x] NURBS evaluation produces correct points for known inputs (compare against reference values)
+- [x] Tube mesh renders with correct radius at each point
+- [x] End caps are half-spheres, visually seamless
+- [x] Cyclic splines loop correctly, no end caps
 - [ ] Mesh updates when control point data changes
-- [ ] Performance: single spline with 20 points renders without frame drops on Quest 3
+- [x] Performance: single spline with 20 points renders without frame drops on Quest 3
 
 ---
 
@@ -167,15 +167,15 @@ user://projects/
    - Light buzz while trigger held during editing
 
 ### Milestone Test
-- [ ] Control point cubes visible, aligned to project space (rotate with space)
-- [ ] Lines visible between sequential points
-- [ ] Action area sphere visible at controller tip
-- [ ] Joystick resizes action area smoothly
-- [ ] Resize stops at min/max bounds
-- [ ] Resize disabled when a point is in the action area
-- [ ] Hovered points highlight with colour and scale
-- [ ] Trigger press: scale down, colour retained
-- [ ] Haptic tap on intersection, buzz on edit
+- [x] Control point cubes visible, aligned to project space (rotate with space)
+- [x] Lines visible between sequential points
+- [x] Action area sphere visible at controller tip
+- [x] Joystick resizes action area smoothly
+- [x] Resize stops at min/max bounds
+- [x] Resize disabled when a point is in the action area
+- [x] Hovered points highlight with colour and scale
+- [x] Trigger press: scale down, colour retained
+- [x] Haptic tap on intersection, buzz on edit
 - [ ] Active spline colour distinct from neutral
 
 ---
@@ -214,17 +214,17 @@ user://projects/
    - Each controller tracks its own in-progress spline independently
 
 ### Milestone Test
-- [ ] Trigger press begins drawing; controller motion creates a spline
-- [ ] Drawn spline smoothly follows hand path without capturing jitter
-- [ ] Control points are sparse and positioned for smooth NURBS result
-- [ ] Trigger pressure maps to control point size (visible in mesh radius)
-- [ ] Releasing trigger finalizes spline
+- [x] Trigger press begins drawing; controller motion creates a spline
+- [x] Drawn spline smoothly follows hand path without capturing jitter
+- [x] Control points are sparse and positioned for smooth NURBS result
+- [x] Trigger pressure maps to control point size (visible in mesh radius)
+- [x] Releasing trigger finalizes spline
 - [ ] Curve Accuracy slider changes point density
-- [ ] Very short draws (shorter than action area) are ignored
-- [ ] First ignored draw shows warning popup
-- [ ] Splines with < 4 points have Order U soft-clamped
-- [ ] Mesh preview updates in realtime while drawing
-- [ ] Two controllers can draw simultaneously
+- [x] Very short draws (shorter than action area) are ignored
+- [x] First ignored draw shows warning popup
+- [x] Splines with < 4 points have Order U soft-clamped
+- [x] Mesh preview updates in realtime while drawing
+- [x] Two controllers can draw simultaneously
 
 ---
 
