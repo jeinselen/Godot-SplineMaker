@@ -55,9 +55,9 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	# Update action area sizes from joystick X
-	left_action_area.update_size(_left_joystick.x, delta)
-	right_action_area.update_size(_right_joystick.x, delta)
+	# Update action area sizes from joystick Y (forward = larger, back = smaller)
+	left_action_area.update_size(_left_joystick.y, delta)
+	right_action_area.update_size(_right_joystick.y, delta)
 
 	# Run hover detection
 	_update_hover(CONTROLLER_ID_LEFT, left_controller, left_action_area)

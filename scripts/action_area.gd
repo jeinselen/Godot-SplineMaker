@@ -7,7 +7,7 @@ extends Node3D
 const SIZE_MIN := 0.01
 const SIZE_MAX := 1.0
 const SIZE_DEFAULT := 0.1
-const RESIZE_SPEED := 0.5
+const RESIZE_SPEED := 0.1
 
 var radius: float = SIZE_DEFAULT
 var resize_locked: bool = false
@@ -35,13 +35,13 @@ func _ready() -> void:
 	add_child(_mesh_instance)
 
 
-func update_size(joystick_x: float, delta: float) -> void:
+func update_size(joystick_y: float, delta: float) -> void:
 	if resize_locked:
 		return
-	if absf(joystick_x) < 0.1:
+	if absf(joystick_y) < 0.1:
 		return
 
-	radius += joystick_x * RESIZE_SPEED * delta
+	radius += joystick_y * RESIZE_SPEED * delta
 	radius = clampf(radius, SIZE_MIN, SIZE_MAX)
 	_apply_radius()
 
