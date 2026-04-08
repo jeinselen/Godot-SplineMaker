@@ -34,14 +34,8 @@ var _right_was_hovering: bool = false
 # Draw mode state (per controller for simultaneous drawing)
 var _left_drawing: bool = false
 var _right_drawing: bool = false
-var _left_draw_samples: PackedVector3Array = PackedVector3Array()
-var _right_draw_samples: PackedVector3Array = PackedVector3Array()
-var _left_draw_sizes: PackedFloat32Array = PackedFloat32Array()
-var _right_draw_sizes: PackedFloat32Array = PackedFloat32Array()
-var _left_draw_length: float = 0.0
-var _right_draw_length: float = 0.0
-var _left_preview_mesh: MeshInstance3D = null
-var _right_preview_mesh: MeshInstance3D = null
+var _left_stroke: DrawStroke = null
+var _right_stroke: DrawStroke = null
 
 # Warning popup state
 var _short_draw_warned: bool = false
@@ -87,13 +81,11 @@ func _process(delta: float) -> void:
 	if not _right_drawing:
 		_update_hover(CONTROLLER_ID_RIGHT, right_controller, right_action_area)
 
-	# Draw mode: record samples and update trail preview
+	# Draw mode: update strokes
 	if _left_drawing:
-		_record_draw_sample(CONTROLLER_ID_LEFT)
-		_update_trail_preview(CONTROLLER_ID_LEFT)
+		_update_stroke(CONTROLLER_ID_LEFT)
 	if _right_drawing:
-		_record_draw_sample(CONTROLLER_ID_RIGHT)
-		_update_trail_preview(CONTROLLER_ID_RIGHT)
+		_update_stroke(CONTROLLER_ID_RIGHT)
 
 	# Haptic buzz while trigger held and editing
 	if _left_trigger_active and (not _left_hover_set.is_empty() or _left_drawing):
@@ -179,128 +171,73 @@ func _begin_drawing(controller_id: int) -> void:
 	var pos := project_space.global_transform.affine_inverse() * controller.global_position
 	var size_val := _get_draw_size(controller_id, action_area)
 
-	# Create a MeshInstance3D for the raw trail preview (direct tube, no NURBS)
-	var preview := MeshInstance3D.new()
-	preview.name = "DrawTrail"
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.7, 0.7, 0.7)
-	preview.material_override = mat
-	project_space.add_child(preview)
+	var stroke := DrawStroke.new()
+	stroke.smoothing = curve_accuracy
+	stroke.begin(pos, size_val, project_space)
 
 	if controller_id == CONTROLLER_ID_LEFT:
 		_left_drawing = true
-		_left_draw_samples = PackedVector3Array([pos])
-		_left_draw_sizes = PackedFloat32Array([size_val])
-		_left_draw_length = 0.0
-		_left_preview_mesh = preview
+		_left_stroke = stroke
 	else:
 		_right_drawing = true
-		_right_draw_samples = PackedVector3Array([pos])
-		_right_draw_sizes = PackedFloat32Array([size_val])
-		_right_draw_length = 0.0
-		_right_preview_mesh = preview
+		_right_stroke = stroke
 
 
-func _record_draw_sample(controller_id: int) -> void:
+func _update_stroke(controller_id: int) -> void:
 	var controller := left_controller if controller_id == CONTROLLER_ID_LEFT else right_controller
 	var action_area := left_action_area if controller_id == CONTROLLER_ID_LEFT else right_action_area
-	var samples := _left_draw_samples if controller_id == CONTROLLER_ID_LEFT else _right_draw_samples
-	var sizes := _left_draw_sizes if controller_id == CONTROLLER_ID_LEFT else _right_draw_sizes
+	var stroke := _left_stroke if controller_id == CONTROLLER_ID_LEFT else _right_stroke
 
-	var pos := project_space.global_transform.affine_inverse() * controller.global_position
-
-	# Skip if too close to previous sample
-	if samples.size() > 0:
-		var dist := pos.distance_to(samples[samples.size() - 1])
-		if dist < 0.002:
-			return
-		if controller_id == CONTROLLER_ID_LEFT:
-			_left_draw_length += dist
-		else:
-			_right_draw_length += dist
-
-	var size_val := _get_draw_size(controller_id, action_area)
-	samples.append(pos)
-	sizes.append(size_val)
-
-	# Store back (PackedArrays are value types)
-	if controller_id == CONTROLLER_ID_LEFT:
-		_left_draw_samples = samples
-		_left_draw_sizes = sizes
-	else:
-		_right_draw_samples = samples
-		_right_draw_sizes = sizes
-
-
-func _update_trail_preview(controller_id: int) -> void:
-	var samples := _left_draw_samples if controller_id == CONTROLLER_ID_LEFT else _right_draw_samples
-	var sizes := _left_draw_sizes if controller_id == CONTROLLER_ID_LEFT else _right_draw_sizes
-	var preview := _left_preview_mesh if controller_id == CONTROLLER_ID_LEFT else _right_preview_mesh
-
-	if not preview or samples.size() < 2:
+	if not stroke:
 		return
 
-	# Smooth the samples for a nicer trail, then render directly as a tube
-	var smooth_result: Array = CurveFitting.smooth_for_preview(samples, sizes, curve_accuracy)
-	var smoothed: PackedVector3Array = smooth_result[0]
-	var smoothed_sizes: PackedFloat32Array = smooth_result[1]
-
-	# Generate tube mesh directly from the smoothed polyline (no NURBS eval)
-	preview.mesh = TubeMesh.generate(smoothed, smoothed_sizes, 8, false)
+	var pos := project_space.global_transform.affine_inverse() * controller.global_position
+	var size_val := _get_draw_size(controller_id, action_area)
+	stroke.update(pos, size_val)
 
 
 func _finalize_drawing(controller_id: int) -> void:
-	var samples := _left_draw_samples if controller_id == CONTROLLER_ID_LEFT else _right_draw_samples
-	var sizes := _left_draw_sizes if controller_id == CONTROLLER_ID_LEFT else _right_draw_sizes
-	var preview := _left_preview_mesh if controller_id == CONTROLLER_ID_LEFT else _right_preview_mesh
+	var stroke := _left_stroke if controller_id == CONTROLLER_ID_LEFT else _right_stroke
 	var action_area := left_action_area if controller_id == CONTROLLER_ID_LEFT else right_action_area
-	var draw_length := _left_draw_length if controller_id == CONTROLLER_ID_LEFT else _right_draw_length
 
-	# Remove the trail preview
-	if preview:
-		preview.queue_free()
+	if not stroke:
+		_clear_draw_state(controller_id)
+		return
+
+	var total_length := stroke.finalize()
 
 	# Check minimum viable spline length
 	var ps_scale := project_space.global_transform.basis.get_scale().x
 	var min_length := (action_area.radius * 2.0) / ps_scale if ps_scale > 0.0001 else action_area.radius * 2.0
 
-	if draw_length < min_length or samples.size() < 2:
+	if total_length < min_length or stroke.data.point_count() < 2:
+		stroke.cancel()
 		if not _short_draw_warned:
 			_short_draw_warned = true
 			_show_short_draw_warning(controller_id)
 	else:
-		# Fit the complete path into a NURBS spline
-		var data := CurveFitting.fit(samples, sizes, curve_accuracy)
-		if data.point_count() >= 2:
-			var spline_node := SplineNode.new()
-			spline_node.name = "Spline"
-			project_space.add_child(spline_node)
-			spline_node.set_data(data)
-			spline_node.set_active(true)
+		# Stroke is already finalized — just mark it as a permanent spline
+		if stroke.spline_node:
+			stroke.spline_node.set_active(true)
+			stroke.spline_node.name = "Spline"
 
 	_clear_draw_state(controller_id)
 
 
 func _cancel_drawing(controller_id: int) -> void:
-	var preview := _left_preview_mesh if controller_id == CONTROLLER_ID_LEFT else _right_preview_mesh
-	if preview:
-		preview.queue_free()
+	var stroke := _left_stroke if controller_id == CONTROLLER_ID_LEFT else _right_stroke
+	if stroke:
+		stroke.cancel()
 	_clear_draw_state(controller_id)
 
 
 func _clear_draw_state(controller_id: int) -> void:
 	if controller_id == CONTROLLER_ID_LEFT:
 		_left_drawing = false
-		_left_draw_samples = PackedVector3Array()
-		_left_draw_sizes = PackedFloat32Array()
-		_left_draw_length = 0.0
-		_left_preview_mesh = null
+		_left_stroke = null
 	else:
 		_right_drawing = false
-		_right_draw_samples = PackedVector3Array()
-		_right_draw_sizes = PackedFloat32Array()
-		_right_draw_length = 0.0
-		_right_preview_mesh = null
+		_right_stroke = null
 
 
 func _get_draw_size(controller_id: int, action_area: ActionArea) -> float:
