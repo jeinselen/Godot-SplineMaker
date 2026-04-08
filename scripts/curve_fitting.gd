@@ -4,15 +4,14 @@ extends RefCounted
 ## Converts a dense hand-drawn polyline into sparse NURBS control points.
 ##
 ## Pipeline:
-## 1. Low-pass filter (exponential moving average) to remove jitter
-## 2. Ramer-Douglas-Peucker simplification to reduce point count
-## 3. Offset simplified points outward so the B-spline curve passes near the path
+## 1. Low-pass filter (bidirectional EMA) to remove jitter
+## 2. Curvature-based point placement (not RDP) to preserve path topology
+##    - Places points where cumulative angle change or arc length exceed thresholds
+##    - Naturally handles spirals, loops, and paths crossing themselves
 
 
-## Main entry point. Returns a SplineData from the raw drawn samples.
+## Fit a complete set of raw samples into a SplineData.
 ## accuracy: 0.0 (fewest points, smoothest) to 1.0 (most points, tightest fit)
-## positions: raw controller positions in project-local space
-## sizes: per-sample radius from trigger pressure
 static func fit(
 	positions: PackedVector3Array,
 	sizes: PackedFloat32Array,
@@ -30,38 +29,97 @@ static func fit(
 	var smoothed := _smooth_ema(positions, smooth_alpha)
 	var smoothed_sizes := _smooth_ema_scalar(sizes, smooth_alpha)
 
-	# 2. Simplify with RDP
-	# Epsilon inversely related to accuracy: low accuracy = large epsilon = fewer points
-	var path_length := _polyline_length(smoothed)
-	var epsilon := lerpf(path_length * 0.08, path_length * 0.005, accuracy)
-	epsilon = maxf(epsilon, 0.001)
-	var indices := _rdp_simplify(smoothed, epsilon)
+	# 2. Curvature-based simplification
+	var indices := _curvature_simplify(smoothed, accuracy)
 
-	# Ensure at least 2 points
 	if indices.size() < 2:
 		indices = PackedInt32Array([0, positions.size() - 1])
 
 	# 3. Extract simplified points and sizes
-	var simplified_pts := PackedVector3Array()
-	var simplified_sizes := PackedFloat32Array()
-	for idx in indices:
-		simplified_pts.append(smoothed[idx])
-		simplified_sizes.append(smoothed_sizes[idx])
-
-	# 4. Offset control points outward so the B-spline approximates the drawn path
-	var offset_pts := _offset_control_points(simplified_pts, smoothed)
-
-	# Build SplineData
 	var data := SplineData.new()
-	data.order_u = mini(4, offset_pts.size())
-	for i in offset_pts.size():
-		data.add_point(offset_pts[i], simplified_sizes[i])
+	data.order_u = mini(4, indices.size())
+	for idx in indices:
+		data.add_point(smoothed[idx], smoothed_sizes[idx])
 
 	return data
 
 
-## Exponential moving average filter for Vector3 positions.
-## alpha: 0 = maximum smoothing, 1 = no smoothing (pass-through)
+## Smooth raw samples for use as a direct preview polyline (no fitting).
+static func smooth_for_preview(
+	positions: PackedVector3Array,
+	sizes: PackedFloat32Array,
+	accuracy: float
+) -> Array:
+	if positions.size() < 2:
+		return [positions.duplicate(), sizes.duplicate()]
+	var smooth_alpha := lerpf(0.15, 0.6, accuracy)
+	var smoothed := _smooth_ema(positions, smooth_alpha)
+	var smoothed_sizes := _smooth_ema_scalar(sizes, smooth_alpha)
+	return [smoothed, smoothed_sizes]
+
+
+## Walk along the polyline, placing a control point whenever:
+## - Cumulative angle change since last placed point exceeds an angle threshold, OR
+## - Arc length since last placed point exceeds a distance threshold
+## Always includes first and last points.
+static func _curvature_simplify(points: PackedVector3Array, accuracy: float) -> PackedInt32Array:
+	var n := points.size()
+	if n <= 3:
+		var result := PackedInt32Array()
+		for i in n:
+			result.append(i)
+		return result
+
+	# Thresholds controlled by accuracy:
+	# Low accuracy = large thresholds = fewer points
+	# High accuracy = small thresholds = more points
+	var angle_threshold := lerpf(0.8, 0.1, accuracy)       # radians (~46° to ~6°)
+	var distance_threshold := lerpf(0.15, 0.01, accuracy)   # meters
+
+	var result := PackedInt32Array()
+	result.append(0)  # Always keep first point
+
+	var last_placed_idx := 0
+	var cumulative_angle := 0.0
+	var cumulative_dist := 0.0
+
+	# Precompute segment directions
+	var directions := PackedVector3Array()
+	directions.resize(n - 1)
+	for i in n - 1:
+		var dir := points[i + 1] - points[i]
+		var length := dir.length()
+		if length > 0.00001:
+			directions[i] = dir / length
+		elif i > 0:
+			directions[i] = directions[i - 1]
+		else:
+			directions[i] = Vector3.FORWARD
+
+	for i in range(1, n - 1):
+		var seg_length := points[i].distance_to(points[i - 1])
+		cumulative_dist += seg_length
+
+		# Angle between consecutive segments
+		var dot := clampf(directions[i - 1].dot(directions[i]), -1.0, 1.0)
+		var angle := acos(dot)
+		cumulative_angle += angle
+
+		# Place a point if either threshold is exceeded
+		if cumulative_angle >= angle_threshold or cumulative_dist >= distance_threshold:
+			result.append(i)
+			last_placed_idx = i
+			cumulative_angle = 0.0
+			cumulative_dist = 0.0
+
+	# Always keep last point
+	result.append(n - 1)
+
+	return result
+
+
+# --- Smoothing ---
+
 static func _smooth_ema(positions: PackedVector3Array, alpha: float) -> PackedVector3Array:
 	var n := positions.size()
 	if n < 2:
@@ -81,7 +139,6 @@ static func _smooth_ema(positions: PackedVector3Array, alpha: float) -> PackedVe
 	return result
 
 
-## Exponential moving average for scalar array.
 static func _smooth_ema_scalar(values: PackedFloat32Array, alpha: float) -> PackedFloat32Array:
 	var n := values.size()
 	if n < 2:
@@ -98,119 +155,6 @@ static func _smooth_ema_scalar(values: PackedFloat32Array, alpha: float) -> Pack
 		result[i] = lerpf(result[i], result[i + 1], alpha * 0.5)
 
 	return result
-
-
-## Ramer-Douglas-Peucker simplification. Returns indices of kept points.
-static func _rdp_simplify(points: PackedVector3Array, epsilon: float) -> PackedInt32Array:
-	var n := points.size()
-	if n <= 2:
-		var result := PackedInt32Array()
-		for i in n:
-			result.append(i)
-		return result
-
-	# Iterative RDP using a stack to avoid recursion depth issues
-	var keep := PackedInt32Array()
-	keep.resize(n)
-	for i in n:
-		keep[i] = 0
-	keep[0] = 1
-	keep[n - 1] = 1
-
-	# Stack of [start, end] pairs
-	var stack: Array[Vector2i] = [Vector2i(0, n - 1)]
-
-	while not stack.is_empty():
-		var range_pair: Vector2i = stack.pop_back()
-		var start: int = range_pair.x
-		var end: int = range_pair.y
-
-		if end - start < 2:
-			continue
-
-		var max_dist := 0.0
-		var max_idx: int = start
-
-		var seg_start: Vector3 = points[start]
-		var seg_end: Vector3 = points[end]
-		var seg_dir := seg_end - seg_start
-		var seg_len_sq := seg_dir.length_squared()
-
-		for i in range(start + 1, end):
-			var dist := 0.0
-			if seg_len_sq < 0.00001:
-				dist = points[i].distance_to(seg_start)
-			else:
-				var param := clampf((points[i] - seg_start).dot(seg_dir) / seg_len_sq, 0.0, 1.0)
-				var proj := seg_start + seg_dir * param
-				dist = points[i].distance_to(proj)
-
-			if dist > max_dist:
-				max_dist = dist
-				max_idx = i
-
-		if max_dist > epsilon:
-			keep[max_idx] = 1
-			stack.append(Vector2i(start, max_idx))
-			stack.append(Vector2i(max_idx, end))
-
-	var result := PackedInt32Array()
-	for i in n:
-		if keep[i] == 1:
-			result.append(i)
-	return result
-
-
-## Offset simplified control points outward so the resulting B-spline
-## curve passes closer to the original drawn path.
-## Uses the difference between each simplified point and the local average
-## of the original path to push control points away from the curve interior.
-static func _offset_control_points(
-	simplified: PackedVector3Array,
-	original: PackedVector3Array
-) -> PackedVector3Array:
-	var n := simplified.size()
-	if n <= 2:
-		return simplified.duplicate()
-
-	var result := PackedVector3Array()
-	result.resize(n)
-
-	# Keep first and last points as-is (they are interpolated by clamped knots)
-	result[0] = simplified[0]
-	result[n - 1] = simplified[n - 1]
-
-	for i in range(1, n - 1):
-		# Find the closest point on the original path
-		var pt := simplified[i]
-		var closest_idx := _find_closest(original, pt)
-
-		# Compute a local average of nearby original points
-		var window := maxi(3, original.size() / n)
-		var avg := Vector3.ZERO
-		var count := 0
-		for j in range(maxi(0, closest_idx - window), mini(original.size(), closest_idx + window + 1)):
-			avg += original[j]
-			count += 1
-		avg /= float(count)
-
-		# The offset pushes the control point away from the local average
-		# so the B-spline (which smooths toward the average) passes through the original
-		var offset := pt - avg
-		result[i] = pt + offset * 0.8
-
-	return result
-
-
-static func _find_closest(points: PackedVector3Array, target: Vector3) -> int:
-	var best_idx := 0
-	var best_dist := target.distance_squared_to(points[0])
-	for i in range(1, points.size()):
-		var d := target.distance_squared_to(points[i])
-		if d < best_dist:
-			best_dist = d
-			best_idx = i
-	return best_idx
 
 
 static func _polyline_length(points: PackedVector3Array) -> float:
