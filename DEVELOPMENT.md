@@ -270,14 +270,14 @@ user://projects/
    - Set default mode: Draw if no splines, Move if splines exist
 
 ### Milestone Test
-- [ ] Drawing a spline creates a save file
-- [ ] Undo restores previous state (spline disappears or reverts)
-- [ ] Redo restores undone state
+- [x] Drawing a spline creates a save file
+- [x] Undo restores previous state (spline disappears or reverts)
+- [x] Redo restores undone state
 - [ ] Undo/redo suppressed during active trigger/grip
-- [ ] New edit after undo discards redo history
+- [x] New edit after undo discards redo history
 - [ ] Save files capped at configured limit; oldest cleaned up
-- [ ] Closing and reopening a project restores all splines
-- [ ] Action area sizes persist per-controller across sessions
+- [x] Closing and reopening a project restores all splines
+- [x] Action area sizes persist per-controller across sessions
 - [ ] Empty project opens in Draw mode; project with splines opens in Move mode
 
 ---
