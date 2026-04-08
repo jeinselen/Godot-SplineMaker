@@ -189,8 +189,8 @@ func _update_hover(controller_id: int, controller: XRController3D, action_area: 
 		_right_was_hovering = is_hovering
 
 
-func _hover_set_contains(set: Array[Dictionary], entry: Dictionary) -> bool:
-	for e in set:
+func _hover_set_contains(hover_set: Array[Dictionary], entry: Dictionary) -> bool:
+	for e in hover_set:
 		if e["spline"] == entry["spline"] and e["index"] == entry["index"]:
 			return true
 	return false
@@ -200,11 +200,11 @@ func _get_hover_set(controller_id: int) -> Array[Dictionary]:
 	return _left_hover_set if controller_id == CONTROLLER_ID_LEFT else _right_hover_set
 
 
-func _set_hover_set(controller_id: int, set: Array[Dictionary]) -> void:
+func _set_hover_set(controller_id: int, hover_set: Array[Dictionary]) -> void:
 	if controller_id == CONTROLLER_ID_LEFT:
-		_left_hover_set = set
+		_left_hover_set = hover_set
 	else:
-		_right_hover_set = set
+		_right_hover_set = hover_set
 
 
 # --- Draw mode ---

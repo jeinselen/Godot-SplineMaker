@@ -23,7 +23,7 @@ static func generate(
 	var tangents := _compute_tangents(polyline, cyclic)
 	var normals: Array[Vector3] = []
 	var binormals: Array[Vector3] = []
-	_compute_frames(tangents, polyline, cyclic, normals, binormals)
+	_compute_frames(tangents, cyclic, normals, binormals)
 
 	# Build mesh using SurfaceTool
 	var st := SurfaceTool.new()
@@ -106,7 +106,6 @@ static func _compute_tangents(polyline: PackedVector3Array, cyclic: bool) -> Arr
 ## Build parallel transport frames (normals and binormals) from tangents.
 static func _compute_frames(
 	tangents: Array[Vector3],
-	polyline: PackedVector3Array,
 	cyclic: bool,
 	out_normals: Array[Vector3],
 	out_binormals: Array[Vector3]

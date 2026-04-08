@@ -68,13 +68,13 @@ func _enable_passthrough() -> void:
 
 func _setup_controller_signals(controller: XRController3D, label: String) -> void:
 	controller.button_pressed.connect(
-		func(name: String) -> void: print(label, " button pressed: ", name))
+		func(action: String) -> void: print(label, " button pressed: ", action))
 	controller.button_released.connect(
-		func(name: String) -> void: print(label, " button released: ", name))
+		func(action: String) -> void: print(label, " button released: ", action))
 	controller.input_float_changed.connect(
-		func(name: String, value: float) -> void: print(label, " float: ", name, " = ", value))
+		func(action: String, value: float) -> void: print(label, " float: ", action, " = ", value))
 	controller.input_vector2_changed.connect(
-		func(name: String, value: Vector2) -> void: print(label, " vec2: ", name, " = ", value))
+		func(action: String, value: Vector2) -> void: print(label, " vec2: ", action, " = ", value))
 
 
 func _on_openxr_session_begun() -> void:
