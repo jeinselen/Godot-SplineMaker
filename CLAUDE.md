@@ -16,9 +16,11 @@ VR spline drawing and editing tool for Meta Quest 3.
 - 1 unit = 1 meter in project space
 - Ambidextrous controls: both controllers operate identically
 - All spline editing auto-saves on trigger release; .blend export only on project close
+- Undo system is file-based: each autosave is an incrementally-named file, undo/redo steps through them
 
 ## Key Constraints
 - Mobile Vulkan performance: keep draw calls and mesh complexity low
 - Default spline resolution U = 8 (lower than Blender's 12 for VR performance)
 - Export .blend files to user's Documents/Splines/ directory, not app directory
 - .blend output must be compatible with Blender 4.5+
+- Order U soft-clamped in-app (to point count), hard-clamped only on .blend export
