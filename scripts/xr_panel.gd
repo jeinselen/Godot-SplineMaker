@@ -66,6 +66,11 @@ var _right_grip_active: bool = false
 # Mouse button state for proper press/release injection
 var _mouse_pressed: Array[bool] = [false, false]
 
+# Per-controller blocking: when true, this controller is ignored entirely
+# (no raycast, no click injection, no grab). Set externally by interaction.gd
+# when the controller has hovered control points.
+var _blocked: Array[bool] = [false, false]
+
 
 ## The Control root inside the SubViewport. Subclasses populate this.
 var content_root: Control:
@@ -163,6 +168,16 @@ func _process(_delta: float) -> void:
 
 
 # --- Public API ---
+
+## Block or unblock a controller from interacting with this panel.
+## Used by interaction.gd to give hovered control points priority.
+func set_controller_blocked(controller_id: int, blocked: bool) -> void:
+	if controller_id >= 0 and controller_id <= 1:
+		_blocked[controller_id] = blocked
+		# If blocking a controller that's currently pointing, release it
+		if blocked and _pointing[controller_id]:
+			_set_pointing(controller_id, false)
+
 
 ## Returns true if the given controller is pointing at this panel.
 func is_controller_pointing(controller_id: int) -> bool:
@@ -275,6 +290,11 @@ func _create_ray_mesh() -> void:
 # --- Raycast ---
 
 func _update_raycast(controller_id: int, controller: XRController3D) -> void:
+	# Skip entirely if this controller is blocked (hovering control points)
+	if _blocked[controller_id]:
+		_set_pointing(controller_id, false)
+		return
+
 	var ray_origin := controller.global_position
 	var ray_dir := -controller.global_transform.basis.z  # aim direction
 
@@ -347,6 +367,8 @@ func _set_pointing(controller_id: int, pointing: bool) -> void:
 
 func _on_trigger_for_click(button_name: String, controller_id: int) -> void:
 	if button_name != "trigger_click":
+		return
+	if _blocked[controller_id]:
 		return
 	if _exclusive_controller >= 0 and _exclusive_controller != controller_id:
 		return
@@ -457,6 +479,8 @@ func _on_controller_button_pressed(button_name: String, controller_id: int) -> v
 		_right_grip_active = true
 
 	if not grabbable or _grabbed:
+		return
+	if _blocked[controller_id]:
 		return
 	if not _edge_overlap[controller_id] and not _pointing[controller_id]:
 		return

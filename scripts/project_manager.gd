@@ -315,8 +315,9 @@ func _serialize_state() -> Dictionary:
 func _restore_state(state: Dictionary) -> void:
 	_is_restoring = true
 
-	# Clear stale hover state before freeing nodes to avoid dangling references
+	# Clear stale hover and selection state before freeing nodes
 	interaction.clear_hover_sets()
+	interaction.select_spline(null)
 
 	# Free existing SplineNodes immediately (not queue_free) so get_children()
 	# returns the updated list on the same frame
@@ -325,6 +326,7 @@ func _restore_state(state: Dictionary) -> void:
 			child.free()
 
 	# Rebuild SplineNodes from saved data
+	var last_spline: SplineNode = null
 	for spline_dict in state.get("splines", []):
 		var sd := SplineData.new()
 		sd.order_u = int(spline_dict.get("order_u", 4))
@@ -342,6 +344,11 @@ func _restore_state(state: Dictionary) -> void:
 		project_space.add_child(sn)
 		sn.set_active(true)
 		sn.mark_dirty()
+		last_spline = sn
+
+	# Auto-select the last spline so there's always a selection
+	if last_spline:
+		interaction.select_spline(last_spline)
 
 	# Restore action area sizes
 	var aa: Dictionary = state.get("action_area_sizes", {})

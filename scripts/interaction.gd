@@ -105,29 +105,43 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	# Check if controllers are pointing at a panel
+	# --- Priority system ---
+	# 1. Hovered control points (highest) — blocks panel interaction entirely
+	# 2. Pointing at panel — blocks drawing and project space navigation
+	# 3. Empty space (lowest) — drawing, action area resize, project space navigation
+
+	# Always run hover detection first (skip only when drawing or areas hidden)
+	if not _left_drawing and left_action_area.visible:
+		_update_hover(CONTROLLER_ID_LEFT, left_controller, left_action_area)
+	if not _right_drawing and right_action_area.visible:
+		_update_hover(CONTROLLER_ID_RIGHT, right_controller, right_action_area)
+
+	# Block panel interaction for controllers that have hovered points
+	var left_hovering := not _left_hover_set.is_empty()
+	var right_hovering := not _right_hover_set.is_empty()
+	var panel: XRPanel = app_manager.active_panel
+	if panel and is_instance_valid(panel):
+		panel.set_controller_blocked(CONTROLLER_ID_LEFT, left_hovering)
+		panel.set_controller_blocked(CONTROLLER_ID_RIGHT, right_hovering)
+
+	# Check panel state (after blocking, so blocked controllers read as not pointing)
 	var left_on_panel: bool = app_manager.is_pointing_at_panel(CONTROLLER_ID_LEFT)
 	var right_on_panel: bool = app_manager.is_pointing_at_panel(CONTROLLER_ID_RIGHT)
 
-	# Joystick behavior depends on hover state and mode
-	# When hovering points: joystick Y adjusts size or weight based on current mode
-	# When not hovering: joystick Y resizes the action area
-	if left_action_area.visible and not left_on_panel:
-		if _left_hover_set.is_empty() or _left_grip_translating:
-			left_action_area.update_size(_left_joystick.y, delta)
-		else:
+	# Joystick behavior:
+	# Hovering points → edit size/weight (unless grip-translating, which uses joystick for scale)
+	# Pointing at panel → panel handles scroll
+	# Neither → resize action area
+	if left_action_area.visible:
+		if left_hovering and not _left_grip_translating:
 			_update_joystick_edit(CONTROLLER_ID_LEFT, delta)
-	if right_action_area.visible and not right_on_panel:
-		if _right_hover_set.is_empty() or _right_grip_translating:
-			right_action_area.update_size(_right_joystick.y, delta)
-		else:
+		elif not left_on_panel:
+			left_action_area.update_size(_left_joystick.y, delta)
+	if right_action_area.visible:
+		if right_hovering and not _right_grip_translating:
 			_update_joystick_edit(CONTROLLER_ID_RIGHT, delta)
-
-	# Run hover detection (skip for controllers that are drawing, pointing at panel, or areas hidden)
-	if not _left_drawing and not left_on_panel and left_action_area.visible:
-		_update_hover(CONTROLLER_ID_LEFT, left_controller, left_action_area)
-	if not _right_drawing and not right_on_panel and right_action_area.visible:
-		_update_hover(CONTROLLER_ID_RIGHT, right_controller, right_action_area)
+		elif not right_on_panel:
+			right_action_area.update_size(_right_joystick.y, delta)
 
 	# Scale grabbed points via joystick Y while grip is active
 	if _left_grip_translating:
@@ -482,6 +496,15 @@ func _on_delete_pressed(controller_id: int) -> void:
 			select_spline(null)
 		sn.queue_free()
 
+	# Auto-select another spline if selection was cleared
+	if selected_spline == null or not is_instance_valid(selected_spline):
+		var fallback: SplineNode = null
+		for child in project_space.get_children():
+			if child is SplineNode and child.is_active and not child.is_queued_for_deletion():
+				fallback = child
+		if fallback:
+			select_spline(fallback)
+
 	project_manager.autosave()
 
 
@@ -621,22 +644,22 @@ func _on_trigger_pressed(controller_id: int) -> void:
 	else:
 		_right_trigger_active = true
 
-	# Skip spline interaction if pointing at a panel (panel handles its own clicks)
-	if app_manager.is_pointing_at_panel(controller_id):
-		return
-
-	# Skip spline interaction when action areas are hidden (main menu state)
+	# Skip when action areas are hidden (main menu state)
 	if not left_action_area.visible:
 		return
 
+	# Priority 1: hovered control points — extrude/insert
 	var hover_set := _get_hover_set(controller_id)
-
-	if hover_set.is_empty():
-		# No points hovered — begin drawing a new spline
-		_begin_drawing(controller_id)
-	else:
-		# Points hovered — extrude endpoints or insert mid-points
+	if not hover_set.is_empty():
 		_begin_extrude_or_insert(controller_id, hover_set)
+		return
+
+	# Priority 2: pointing at panel — panel handles its own clicks
+	if app_manager.is_pointing_at_panel(controller_id):
+		return
+
+	# Priority 3: empty space — begin drawing
+	_begin_drawing(controller_id)
 
 
 func _on_trigger_released(controller_id: int) -> void:
