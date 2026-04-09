@@ -102,7 +102,7 @@ func _build_ui() -> void:
 	vbox.add_child(mode_row)
 
 	_mode_group = ButtonGroup.new()
-	var mode_names := ["Move", "Draw", "Extrude", "Size", "Weight"]
+	var mode_names := ["Size", "Weight"]
 	for i in mode_names.size():
 		var btn := Button.new()
 		btn.text = mode_names[i]
@@ -114,7 +114,7 @@ func _build_ui() -> void:
 		mode_row.add_child(btn)
 		_mode_buttons.append(btn)
 
-	# --- Curve Accuracy slider (Draw mode only) ---
+	# --- Curve Accuracy slider ---
 	_accuracy_container = HBoxContainer.new()
 	_accuracy_container.add_theme_constant_override("separation", 6)
 	vbox.add_child(_accuracy_container)
@@ -261,12 +261,8 @@ func _on_reset_pressed() -> void:
 
 
 func _on_mode_pressed(mode_index: int) -> void:
-	# Mode enum order: DRAW=0, MOVE=1, EXTRUDE=2, SIZE=3, WEIGHT=4
-	# Button order: Move=0, Draw=1, Extrude=2, Size=3, Weight=4
+	# Button order: Size=0, Weight=1
 	var mode_map := [
-		_interaction.Mode.MOVE,
-		_interaction.Mode.DRAW,
-		_interaction.Mode.EXTRUDE,
 		_interaction.Mode.SIZE,
 		_interaction.Mode.WEIGHT,
 	]
@@ -280,18 +276,12 @@ func _on_mode_changed(_mode) -> void:
 func _update_mode_buttons() -> void:
 	# Map Mode enum to button index
 	var mode_to_btn := {
-		_interaction.Mode.MOVE: 0,
-		_interaction.Mode.DRAW: 1,
-		_interaction.Mode.EXTRUDE: 2,
-		_interaction.Mode.SIZE: 3,
-		_interaction.Mode.WEIGHT: 4,
+		_interaction.Mode.SIZE: 0,
+		_interaction.Mode.WEIGHT: 1,
 	}
-	var btn_index: int = mode_to_btn.get(_interaction.current_mode, 1)
+	var btn_index: int = mode_to_btn.get(_interaction.current_mode, 0)
 	if btn_index < _mode_buttons.size():
 		_mode_buttons[btn_index].button_pressed = true
-
-	# Show/hide accuracy slider based on Draw mode
-	_accuracy_container.visible = _interaction.current_mode == _interaction.Mode.DRAW
 
 
 func _on_accuracy_changed(value: float) -> void:

@@ -43,13 +43,7 @@ func open_project(dir_name: String) -> void:
 	state = AppState.IN_PROJECT
 
 	interaction.set_action_areas_visible(true)
-
-	# Set default mode based on spline count
-	var has_splines := _count_splines() > 0
-	if has_splines:
-		interaction.set_mode(interaction.Mode.MOVE)
-	else:
-		interaction.set_mode(interaction.Mode.DRAW)
+	interaction.set_mode(interaction.Mode.SIZE)
 
 	_create_in_project_panel()
 
@@ -61,7 +55,7 @@ func create_and_open_project() -> void:
 	project_space.transform = Transform3D(Basis.IDENTITY, DEFAULT_PROJECT_OFFSET)
 	state = AppState.IN_PROJECT
 	interaction.set_action_areas_visible(true)
-	interaction.set_mode(interaction.Mode.DRAW)
+	interaction.set_mode(interaction.Mode.SIZE)
 	_create_in_project_panel()
 
 
@@ -143,14 +137,6 @@ func is_any_panel_grabbed() -> bool:
 	if active_panel and is_instance_valid(active_panel):
 		return active_panel.is_grabbed()
 	return false
-
-
-func _count_splines() -> int:
-	var count := 0
-	for child in project_space.get_children():
-		if child is SplineNode:
-			count += 1
-	return count
 
 
 ## Apply updated settings. Called by settings panel.

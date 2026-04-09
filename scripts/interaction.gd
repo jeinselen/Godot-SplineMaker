@@ -12,9 +12,9 @@ extends Node3D
 var left_action_area: ActionArea
 var right_action_area: ActionArea
 
-# Mode state
-enum Mode { DRAW, MOVE, EXTRUDE, SIZE, WEIGHT }
-var current_mode: Mode = Mode.DRAW
+# Mode state — Size and Weight control joystick behavior on hovered points
+enum Mode { SIZE, WEIGHT }
+var current_mode: Mode = Mode.SIZE
 var curve_accuracy: float = 0.5  # 0.0 = smoothest, 1.0 = tightest fit
 
 # Selected spline tracking
@@ -46,10 +46,10 @@ var _right_stroke: DrawStroke = null
 var _left_trigger_floor: float = 0.0
 var _right_trigger_floor: float = 0.0
 
-# Translate-active flag: set when trigger is pressed while points are hovered (non-draw mode)
-# Used to avoid spurious autosaves when trigger releases with an empty hover set
-var _left_translate_active: bool = false
-var _right_translate_active: bool = false
+# Extrude/insert state: tracks newly created points being moved by trigger hold
+# Array of {spline: SplineNode, index: int, initial_ctrl_pos: Vector3}
+var _left_extruding: Array[Dictionary] = []
+var _right_extruding: Array[Dictionary] = []
 
 # Grip-translate state (per controller): grip moves hovered points instead of project space
 var _left_grip_translating: bool = false
@@ -106,11 +106,19 @@ func _process(delta: float) -> void:
 	var left_on_panel: bool = app_manager.is_pointing_at_panel(CONTROLLER_ID_LEFT)
 	var right_on_panel: bool = app_manager.is_pointing_at_panel(CONTROLLER_ID_RIGHT)
 
-	# Update action area sizes from joystick Y (skip when pointing at panel or areas hidden)
-	if not left_on_panel and left_action_area.visible:
-		left_action_area.update_size(_left_joystick.y, delta)
-	if not right_on_panel and right_action_area.visible:
-		right_action_area.update_size(_right_joystick.y, delta)
+	# Joystick behavior depends on hover state and mode
+	# When hovering points: joystick Y adjusts size or weight based on current mode
+	# When not hovering: joystick Y resizes the action area
+	if left_action_area.visible and not left_on_panel:
+		if _left_hover_set.is_empty() or _left_grip_translating:
+			left_action_area.update_size(_left_joystick.y, delta)
+		else:
+			_update_joystick_edit(CONTROLLER_ID_LEFT, delta)
+	if right_action_area.visible and not right_on_panel:
+		if _right_hover_set.is_empty() or _right_grip_translating:
+			right_action_area.update_size(_right_joystick.y, delta)
+		else:
+			_update_joystick_edit(CONTROLLER_ID_RIGHT, delta)
 
 	# Run hover detection (skip for controllers that are drawing, pointing at panel, or areas hidden)
 	if not _left_drawing and not left_on_panel and left_action_area.visible:
@@ -134,16 +142,22 @@ func _process(delta: float) -> void:
 	if _right_grip_translating:
 		_update_grip_transform(CONTROLLER_ID_RIGHT)
 
+	# Update extruded/inserted point positions
+	if not _left_extruding.is_empty():
+		_update_extrude(CONTROLLER_ID_LEFT)
+	if not _right_extruding.is_empty():
+		_update_extrude(CONTROLLER_ID_RIGHT)
+
 	# Draw mode: update strokes
 	if _left_drawing:
 		_update_stroke(CONTROLLER_ID_LEFT)
 	if _right_drawing:
 		_update_stroke(CONTROLLER_ID_RIGHT)
 
-	# Haptic buzz while actively editing (trigger or grip translate)
-	if _left_trigger_active and (not _left_hover_set.is_empty() or _left_drawing):
+	# Haptic buzz while actively editing
+	if _left_trigger_active and (not _left_extruding.is_empty() or _left_drawing):
 		left_controller.trigger_haptic_pulse("haptic", 0.0, HAPTIC_BUZZ_AMPLITUDE, HAPTIC_BUZZ_DURATION, 0.0)
-	if _right_trigger_active and (not _right_hover_set.is_empty() or _right_drawing):
+	if _right_trigger_active and (not _right_extruding.is_empty() or _right_drawing):
 		right_controller.trigger_haptic_pulse("haptic", 0.0, HAPTIC_BUZZ_AMPLITUDE, HAPTIC_BUZZ_DURATION, 0.0)
 	if _left_grip_translating:
 		left_controller.trigger_haptic_pulse("haptic", 0.0, HAPTIC_BUZZ_AMPLITUDE, HAPTIC_BUZZ_DURATION, 0.0)
@@ -330,6 +344,156 @@ func _show_short_draw_warning(_controller_id: int) -> void:
 	)
 
 
+# --- Extrude / Insert ---
+
+func _begin_extrude_or_insert(controller_id: int, hover_set: Array[Dictionary]) -> void:
+	var controller := left_controller if controller_id == CONTROLLER_ID_LEFT else right_controller
+	var ctrl_local_pos := project_space.global_transform.affine_inverse() * controller.global_position
+
+	# Separate endpoints from mid-points
+	var endpoints: Array[Dictionary] = []
+	var midpoints: Array[Dictionary] = []
+	for entry in hover_set:
+		var sn := entry["spline"] as SplineNode
+		if sn.data.is_endpoint(entry["index"]):
+			endpoints.append(entry)
+		else:
+			midpoints.append(entry)
+
+	var new_points: Array[Dictionary] = []
+
+	if not endpoints.is_empty():
+		# Extrude all hovered endpoints
+		for entry in endpoints:
+			var sn := entry["spline"] as SplineNode
+			var idx: int = entry["index"]
+			var src_size := sn.data.sizes[idx]
+			var src_weight := sn.data.weights[idx]
+			var new_idx: int
+			if idx == 0:
+				# Prepend: insert at index 0, new point starts at same position
+				sn.data.insert_point(0, ctrl_local_pos, src_size, src_weight)
+				new_idx = 0
+				# Shift any existing hover/editing indices for this spline
+			else:
+				# Append: add at end
+				sn.data.add_point(ctrl_local_pos, src_size, src_weight)
+				new_idx = sn.data.point_count() - 1
+			sn.mark_dirty()
+			sn.set_point_editing(new_idx, true)
+			new_points.append({"spline": sn, "index": new_idx})
+	else:
+		# Insert mid-points: only lowest index per spline
+		var per_spline: Dictionary = {}  # SplineNode → lowest index entry
+		for entry in midpoints:
+			var sn := entry["spline"] as SplineNode
+			if not per_spline.has(sn) or entry["index"] < per_spline[sn]["index"]:
+				per_spline[sn] = entry
+
+		for sn: SplineNode in per_spline:
+			var entry: Dictionary = per_spline[sn]
+			var idx: int = entry["index"]
+			var next_idx := idx + 1
+			# Average size and weight between current and next point
+			var avg_size := (sn.data.sizes[idx] + sn.data.sizes[next_idx]) * 0.5
+			var avg_weight := (sn.data.weights[idx] + sn.data.weights[next_idx]) * 0.5
+			# Insert after current point
+			sn.data.insert_point(next_idx, ctrl_local_pos, avg_size, avg_weight)
+			sn.mark_dirty()
+			sn.set_point_editing(next_idx, true)
+			new_points.append({"spline": sn, "index": next_idx})
+
+	if controller_id == CONTROLLER_ID_LEFT:
+		_left_extruding = new_points
+	else:
+		_right_extruding = new_points
+
+
+func _update_extrude(controller_id: int) -> void:
+	var controller := left_controller if controller_id == CONTROLLER_ID_LEFT else right_controller
+	var extruding := _left_extruding if controller_id == CONTROLLER_ID_LEFT else _right_extruding
+	var ctrl_local_pos := project_space.global_transform.affine_inverse() * controller.global_position
+
+	for entry in extruding:
+		var sn := entry["spline"] as SplineNode
+		var idx: int = entry["index"]
+		sn.data.points[idx] = ctrl_local_pos
+		sn.mark_dirty()
+
+
+# --- Delete points (A/X button) ---
+
+func _on_delete_pressed(controller_id: int) -> void:
+	if is_input_active():
+		return
+	if not left_action_area.visible:
+		return
+
+	var hover_set := _get_hover_set(controller_id)
+	if hover_set.is_empty():
+		return
+
+	# Group by spline, collect indices in descending order for safe removal
+	var per_spline: Dictionary = {}  # SplineNode → Array[int]
+	for entry in hover_set:
+		var sn := entry["spline"] as SplineNode
+		if not per_spline.has(sn):
+			per_spline[sn] = []
+		per_spline[sn].append(entry["index"])
+
+	var splines_to_remove: Array[SplineNode] = []
+
+	for sn: SplineNode in per_spline:
+		var indices: Array = per_spline[sn]
+		indices.sort()
+		indices.reverse()  # Remove from highest index first
+
+		var remaining := sn.data.point_count() - indices.size()
+		if remaining <= 1:
+			# Spline would have 0 or 1 points — remove entirely
+			splines_to_remove.append(sn)
+		else:
+			for idx in indices:
+				sn.data.remove_point(idx)
+			sn.mark_dirty()
+
+	# Clear hover sets before freeing nodes
+	_set_hover_set(controller_id, [])
+
+	# Remove splines that are too short
+	for sn in splines_to_remove:
+		if selected_spline == sn:
+			select_spline(null)
+		sn.queue_free()
+
+	project_manager.autosave()
+
+
+# --- Joystick size/weight editing ---
+
+const JOYSTICK_EDIT_SPEED := 0.5
+
+func _update_joystick_edit(controller_id: int, delta: float) -> void:
+	var joy_y := _left_joystick.y if controller_id == CONTROLLER_ID_LEFT else _right_joystick.y
+	if absf(joy_y) < 0.1:
+		return
+
+	var hover_set := _get_hover_set(controller_id)
+	if hover_set.is_empty():
+		return
+
+	var change := joy_y * JOYSTICK_EDIT_SPEED * delta
+
+	for entry in hover_set:
+		var sn := entry["spline"] as SplineNode
+		var idx: int = entry["index"]
+		if current_mode == Mode.SIZE:
+			sn.data.sizes[idx] = maxf(0.001, sn.data.sizes[idx] + change)
+		else:  # Mode.WEIGHT
+			sn.data.weights[idx] = maxf(0.01, sn.data.weights[idx] + change)
+		sn.mark_dirty()
+
+
 # --- Helpers for project_manager ---
 
 ## Returns true while any trigger or grip translate is active on either controller.
@@ -394,21 +558,7 @@ func _on_button_pressed(button_name: String, controller_id: int) -> void:
 	elif button_name == "grip_click":
 		_on_grip_pressed(controller_id)
 	elif button_name == "ax_button":
-		_try_undo()
-	elif button_name == "by_button":
-		_try_redo()
-
-
-func _try_undo() -> void:
-	if is_input_active():
-		return
-	project_manager.undo()
-
-
-func _try_redo() -> void:
-	if is_input_active():
-		return
-	project_manager.redo()
+		_on_delete_pressed(controller_id)
 
 
 func _on_button_released(button_name: String, controller_id: int) -> void:
@@ -450,19 +600,12 @@ func _on_trigger_pressed(controller_id: int) -> void:
 
 	var hover_set := _get_hover_set(controller_id)
 
-	if current_mode == Mode.DRAW and hover_set.is_empty():
+	if hover_set.is_empty():
 		# No points hovered — begin drawing a new spline
 		_begin_drawing(controller_id)
 	else:
-		# Mark hovered points as editing
-		for entry in hover_set:
-			(entry["spline"] as SplineNode).set_point_editing(entry["index"], true)
-		# Track that a translate edit began (for autosave on release)
-		if not hover_set.is_empty():
-			if controller_id == CONTROLLER_ID_LEFT:
-				_left_translate_active = true
-			else:
-				_right_translate_active = true
+		# Points hovered — extrude endpoints or insert mid-points
+		_begin_extrude_or_insert(controller_id, hover_set)
 
 
 func _on_trigger_released(controller_id: int) -> void:
@@ -478,19 +621,17 @@ func _on_trigger_released(controller_id: int) -> void:
 		project_manager.autosave()
 		return
 
-	# Clear editing state on hovered points
-	var hover_set := _get_hover_set(controller_id)
-	for entry in hover_set:
-		(entry["spline"] as SplineNode).set_point_editing(entry["index"], false)
-
-	# Autosave if a translate edit was active
-	var translate_was_active := _left_translate_active if controller_id == CONTROLLER_ID_LEFT else _right_translate_active
-	if translate_was_active:
+	# Finalize extrude/insert if active
+	var extruding := _left_extruding if controller_id == CONTROLLER_ID_LEFT else _right_extruding
+	if not extruding.is_empty():
+		for entry in extruding:
+			(entry["spline"] as SplineNode).set_point_editing(entry["index"], false)
 		if controller_id == CONTROLLER_ID_LEFT:
-			_left_translate_active = false
+			_left_extruding = []
 		else:
-			_right_translate_active = false
+			_right_extruding = []
 		project_manager.autosave()
+		return
 
 
 # --- Grip-based point translation ---
