@@ -100,6 +100,51 @@ func open_project(dir_name: String) -> void:
 	project_opened.emit()
 
 
+## Imports a JSON file as a new project. The project folder is named after the JSON
+## file (without extension) so that closing the project exports back to the same
+## filename in Documents/Splines/. Returns the directory name, or "" on failure.
+func import_project_from_json(json_path: String) -> String:
+	# Read and parse the source JSON
+	var fa := FileAccess.open(json_path, FileAccess.READ)
+	if not fa:
+		push_error("ProjectManager: could not read import file: " + json_path)
+		return ""
+	var content := fa.get_as_text()
+	fa.close()
+	var parsed: Variant = JSON.parse_string(content)
+	if not parsed is Dictionary:
+		push_error("ProjectManager: JSON parse failed for import file: " + json_path)
+		return ""
+
+	# Derive a project folder name from the JSON filename (without extension).
+	# If a folder with that name already exists, append a counter to keep it unique.
+	var base_name := json_path.get_file().trim_suffix(".json")
+	if base_name.is_empty():
+		base_name = "imported"
+	var dir_name := base_name
+	var counter := 2
+	while DirAccess.dir_exists_absolute(PROJECTS_ROOT + dir_name):
+		dir_name = base_name + "-" + str(counter)
+		counter += 1
+
+	_project_dir = PROJECTS_ROOT + dir_name + "/"
+	DirAccess.make_dir_recursive_absolute(_project_dir)
+	_save_counter = 1
+	_undo_stack = [1]
+	_undo_index = 0
+
+	# Write the imported JSON as the first save file and update meta
+	var fw := FileAccess.open(_project_dir + _save_filename(_save_counter), FileAccess.WRITE)
+	if fw:
+		fw.store_string(content)
+		fw.close()
+	else:
+		push_error("ProjectManager: could not write initial save for imported project: " + _project_dir)
+	_write_meta()
+
+	return dir_name
+
+
 ## Deletes a project folder and all its contents.
 func delete_project(dir_name: String) -> void:
 	var dir_path := PROJECTS_ROOT + dir_name + "/"
@@ -413,7 +458,7 @@ func _load_save_file(file_num: int) -> void:
 # --- Project close & JSON export ---
 
 ## Returns the resolved export directory, creating it if needed.
-func _get_export_dir() -> String:
+func get_export_dir() -> String:
 	var dir := export_directory
 	if dir.is_empty():
 		# Default: Documents/Splines/ — on Quest 3 this resolves to shared storage.
@@ -455,7 +500,10 @@ func close_project() -> bool:
 ## The file is named after the project (e.g. "2026-04-08-14-30.json").
 ## Returns true on success.
 func export_json() -> bool:
-	var export_dir := _get_export_dir()
+	if _project_dir.is_empty():
+		push_warning("ProjectManager: export_json called with no open project, skipping")
+		return false
+	var export_dir := get_export_dir()
 
 	# Create the export directory
 	var err := DirAccess.make_dir_recursive_absolute(export_dir)

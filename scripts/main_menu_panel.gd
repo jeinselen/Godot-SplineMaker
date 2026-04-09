@@ -12,6 +12,9 @@ var _main_vbox: VBoxContainer
 var _project_list_container: VBoxContainer
 var _project_scroll: ScrollContainer
 var _settings_view: VBoxContainer
+var _import_view: VBoxContainer
+var _import_list_container: VBoxContainer
+var _import_path_label: Label
 
 # Settings controls
 var _export_path_edit: LineEdit
@@ -29,8 +32,8 @@ var _delete_confirm_row: HBoxContainer = null
 var _rename_edit: LineEdit = null
 var _rename_dir: String = ""
 
-# Which view is showing
-var _showing_settings: bool = false
+# Which overlay view is showing (null = main list, otherwise _settings_view or _import_view)
+var _active_overlay: VBoxContainer = null
 
 
 static func create_panel(app_mgr) -> MainMenuPanel:
@@ -117,6 +120,12 @@ func _build_ui() -> void:
 	new_btn.pressed.connect(_on_new_project_pressed)
 	_main_vbox.add_child(new_btn)
 
+	var import_btn := Button.new()
+	import_btn.text = "Import Project"
+	import_btn.add_theme_font_size_override("font_size", 20)
+	import_btn.pressed.connect(_on_import_pressed)
+	_main_vbox.add_child(import_btn)
+
 	var settings_btn := Button.new()
 	settings_btn.text = "Settings"
 	settings_btn.add_theme_font_size_override("font_size", 20)
@@ -129,8 +138,9 @@ func _build_ui() -> void:
 	quit_btn.pressed.connect(_on_quit_pressed)
 	_main_vbox.add_child(quit_btn)
 
-	# --- Settings view (hidden by default) ---
+	# --- Overlay views (hidden by default) ---
 	_build_settings_view()
+	_build_import_view()
 
 	content_root.add_child(panel_container)
 
@@ -264,6 +274,77 @@ func _build_settings_view() -> void:
 	back_btn.add_theme_font_size_override("font_size", 20)
 	back_btn.pressed.connect(_on_settings_back_pressed)
 	_settings_view.add_child(back_btn)
+
+
+func _build_import_view() -> void:
+	_import_view = VBoxContainer.new()
+	_import_view.add_theme_constant_override("separation", 8)
+	_import_view.visible = false
+	_main_vbox.add_child(_import_view)
+
+	var import_title := Label.new()
+	import_title.text = "Import Project"
+	import_title.add_theme_font_size_override("font_size", 24)
+	import_title.add_theme_color_override("font_color", Color(0.3, 0.8, 1.0))
+	import_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_import_view.add_child(import_title)
+
+	_import_path_label = Label.new()
+	_import_path_label.add_theme_font_size_override("font_size", 12)
+	_import_path_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
+	_import_path_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_import_path_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_import_view.add_child(_import_path_label)
+
+	_import_view.add_child(HSeparator.new())
+
+	var import_scroll := ScrollContainer.new()
+	import_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	import_scroll.custom_minimum_size = Vector2(0, 300)
+	_import_view.add_child(import_scroll)
+
+	_import_list_container = VBoxContainer.new()
+	_import_list_container.add_theme_constant_override("separation", 4)
+	_import_list_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	import_scroll.add_child(_import_list_container)
+
+	_import_view.add_child(HSeparator.new())
+
+	var refresh_btn := Button.new()
+	refresh_btn.text = "Refresh"
+	refresh_btn.add_theme_font_size_override("font_size", 20)
+	refresh_btn.pressed.connect(_refresh_import_list)
+	_import_view.add_child(refresh_btn)
+
+	var back_btn := Button.new()
+	back_btn.text = "Back"
+	back_btn.add_theme_font_size_override("font_size", 20)
+	back_btn.pressed.connect(_show_main_view)
+	_import_view.add_child(back_btn)
+
+
+# --- Overlay view helpers ---
+
+## Show the main project list, hiding any overlay.
+func _show_main_view() -> void:
+	if _active_overlay:
+		_active_overlay.visible = false
+		_active_overlay = null
+	for child in _main_vbox.get_children():
+		if child != _settings_view and child != _import_view:
+			child.visible = true
+	_refresh_project_list()
+
+
+## Hide main content and show the given overlay view.
+func _show_overlay(view: VBoxContainer) -> void:
+	for child in _main_vbox.get_children():
+		if child != _settings_view and child != _import_view:
+			child.visible = false
+	if _active_overlay and _active_overlay != view:
+		_active_overlay.visible = false
+	_active_overlay = view
+	view.visible = true
 
 
 # --- Project list ---
@@ -407,16 +488,11 @@ func _on_delete_confirmed(dir_name: String) -> void:
 # --- Settings ---
 
 func _on_settings_pressed() -> void:
-	_showing_settings = true
-	# Hide main content, show settings
-	for child in _main_vbox.get_children():
-		if child != _settings_view:
-			child.visible = false
-	_settings_view.visible = true
+	_show_overlay(_settings_view)
 
 
 func _on_settings_back_pressed() -> void:
-	# Save settings
+	# Save settings before returning
 	_app_manager.settings.export_directory = _export_path_edit.text
 	_app_manager.settings.max_undo_steps = int(_undo_steps_spin.value)
 	_app_manager.settings.autosave_delay = _autosave_delay_spin.value
@@ -424,14 +500,7 @@ func _on_settings_back_pressed() -> void:
 	_app_manager.settings.preview_mesh_resolution = int(_mesh_res_spin.value)
 	_app_manager.settings.preview_spline_resolution = int(_spline_res_spin.value)
 	_app_manager.apply_settings()
-
-	# Show main content, hide settings
-	_showing_settings = false
-	_settings_view.visible = false
-	for child in _main_vbox.get_children():
-		if child != _settings_view:
-			child.visible = true
-	_refresh_project_list()
+	_show_main_view()
 
 
 func _on_panel_side_toggled() -> void:
@@ -439,6 +508,65 @@ func _on_panel_side_toggled() -> void:
 		_panel_side_btn.text = "Right"
 	else:
 		_panel_side_btn.text = "Left"
+
+
+func _on_import_pressed() -> void:
+	_show_overlay(_import_view)
+	_refresh_import_list()
+
+
+func _refresh_import_list() -> void:
+	for child in _import_list_container.get_children():
+		child.free()
+
+	var export_dir: String = _project_manager.get_export_dir()
+	print("Import: scanning directory: ", export_dir)
+	_import_path_label.text = export_dir
+
+	var da := DirAccess.open(export_dir)
+	if not da:
+		print("Import: DirAccess.open() failed for: ", export_dir)
+		var empty := Label.new()
+		empty.text = "Folder not found:\n" + export_dir
+		empty.add_theme_font_size_override("font_size", 16)
+		empty.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
+		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_import_list_container.add_child(empty)
+		return
+
+	var files: Array[String] = []
+	da.list_dir_begin()
+	var entry := da.get_next()
+	while entry != "":
+		if not da.current_is_dir() and entry.ends_with(".json"):
+			files.append(entry)
+		entry = da.get_next()
+	da.list_dir_end()
+	files.sort()
+	print("Import: found ", files.size(), " .json file(s): ", files)
+
+	if files.is_empty():
+		var empty := Label.new()
+		empty.text = "No .json files found"
+		empty.add_theme_font_size_override("font_size", 18)
+		empty.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
+		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_import_list_container.add_child(empty)
+		return
+
+	for file_name in files:
+		var full_path: String = export_dir + file_name
+		var btn := Button.new()
+		btn.text = file_name.trim_suffix(".json")
+		btn.add_theme_font_size_override("font_size", 18)
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.pressed.connect(_on_import_file_pressed.bind(full_path))
+		_import_list_container.add_child(btn)
+
+
+func _on_import_file_pressed(json_path: String) -> void:
+	_app_manager.import_and_open_project(json_path)
 
 
 func _on_export_path_edit_pressed() -> void:

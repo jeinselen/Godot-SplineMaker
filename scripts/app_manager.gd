@@ -26,6 +26,10 @@ func _ready() -> void:
 	project_manager.preview_mesh_resolution = settings.preview_mesh_resolution
 	project_manager.preview_spline_resolution = settings.preview_spline_resolution
 
+	# Request storage permissions on Android (needed for importing external files)
+	if OS.get_name() == "Android":
+		OS.request_permissions()
+
 	# Hide project space and action areas until a project is opened
 	project_space.visible = false
 	interaction.set_action_areas_visible(false)
@@ -61,6 +65,15 @@ func create_and_open_project() -> void:
 	interaction.set_action_areas_visible(true)
 	interaction.set_mode(interaction.Mode.SIZE)
 	_create_in_project_panel()
+
+
+## Imports a JSON file from the export directory as a new project and opens it.
+func import_and_open_project(json_path: String) -> void:
+	var dir_name: String = project_manager.import_project_from_json(json_path)
+	if dir_name.is_empty():
+		show_popup("Import failed:\n" + json_path.get_file(), Color(1.0, 0.3, 0.3))
+		return
+	open_project(dir_name)
 
 
 func close_project() -> void:
