@@ -21,6 +21,8 @@ const JSON_VERSION := 1
 
 signal export_succeeded(path: String)
 signal export_failed(error: String)
+signal project_opened
+signal project_closed
 
 var _project_dir: String = ""
 var _save_counter: int = 0        # total saves ever written; monotonically increases
@@ -29,26 +31,16 @@ var _undo_index: int = -1         # index into _undo_stack of the currently load
 var _is_restoring: bool = false   # suppresses autosave during undo/redo restore
 
 
-const POPUP_DISMISS_TIME := 30.0
-
 func _ready() -> void:
 	export_failed.connect(_on_export_failed)
 	export_succeeded.connect(_on_export_succeeded)
-	_open_or_create_project()
 
 
 # --- Project open / create ---
 
-func _open_or_create_project() -> void:
+## Lists all project directory names sorted alphabetically.
+func list_project_dirs() -> Array[String]:
 	DirAccess.make_dir_recursive_absolute(PROJECTS_ROOT)
-	var dirs := _list_project_dirs()
-	if dirs.is_empty():
-		_create_new_project()
-	else:
-		_open_project(dirs[-1])  # alphabetically last = most recent YYYY-MM-DD-HH-MM
-
-
-func _list_project_dirs() -> Array[String]:
 	var da := DirAccess.open(PROJECTS_ROOT)
 	if not da:
 		return []
@@ -64,8 +56,8 @@ func _list_project_dirs() -> Array[String]:
 	return result
 
 
-func _create_new_project() -> void:
-	# Time.get_datetime_string_from_system returns "YYYY-MM-DDTHH:MM:SS"
+## Creates a new timestamped project. Returns the directory name.
+func create_new_project() -> String:
 	var raw := Time.get_datetime_string_from_system(false, true)
 	var timestamp := raw.replace("T", "-").replace(":", "-").left(16)
 	_project_dir = PROJECTS_ROOT + timestamp + "/"
@@ -75,20 +67,76 @@ func _create_new_project() -> void:
 	_undo_index = -1
 	_write_meta()
 	autosave()  # write initial empty-state save so undo can return to blank canvas
+	project_opened.emit()
+	return timestamp
 
 
-func _open_project(dir_name: String) -> void:
+## Opens an existing project by directory name.
+func open_project(dir_name: String) -> void:
 	_project_dir = PROJECTS_ROOT + dir_name + "/"
 	_read_meta()
 	_undo_stack = _scan_save_files()
 	if _undo_stack.is_empty():
-		# Empty or corrupted project directory — start fresh
 		_save_counter = 0
 		_undo_index = -1
 		autosave()
+	else:
+		_undo_index = _undo_stack.size() - 1
+		_load_save_file(_undo_stack[_undo_index])
+	project_opened.emit()
+
+
+## Deletes a project folder and all its contents.
+func delete_project(dir_name: String) -> void:
+	var dir_path := PROJECTS_ROOT + dir_name + "/"
+	var da := DirAccess.open(dir_path)
+	if not da:
+		push_error("ProjectManager: could not open " + dir_path + " for deletion")
 		return
-	_undo_index = _undo_stack.size() - 1
-	_load_save_file(_undo_stack[_undo_index])
+	# Delete all files in the project directory
+	da.list_dir_begin()
+	var entry := da.get_next()
+	while entry != "":
+		if not da.current_is_dir():
+			DirAccess.remove_absolute(dir_path + entry)
+		entry = da.get_next()
+	da.list_dir_end()
+	# Remove the directory itself
+	DirAccess.remove_absolute(dir_path)
+
+
+## Renames a project. Updates the directory name and meta.json.
+func rename_project(dir_name: String, new_name: String) -> void:
+	var old_path := PROJECTS_ROOT + dir_name
+	var new_path := PROJECTS_ROOT + new_name
+	var err := DirAccess.rename_absolute(old_path, new_path)
+	if err != OK:
+		push_error("ProjectManager: rename failed from %s to %s (error %d)" % [old_path, new_path, err])
+		return
+	# Update meta.json with the new name
+	var meta_path := new_path + "/" + META_FILE
+	var fa := FileAccess.open(meta_path, FileAccess.READ)
+	if fa:
+		var parsed: Variant = JSON.parse_string(fa.get_as_text())
+		fa.close()
+		if parsed is Dictionary:
+			parsed["name"] = new_name
+			var fw := FileAccess.open(meta_path, FileAccess.WRITE)
+			if fw:
+				fw.store_string(JSON.stringify(parsed, "\t"))
+				fw.close()
+
+
+## Returns the display name for a project directory.
+func get_project_name(dir_name: String) -> String:
+	var meta_path := PROJECTS_ROOT + dir_name + "/" + META_FILE
+	var fa := FileAccess.open(meta_path, FileAccess.READ)
+	if fa:
+		var parsed: Variant = JSON.parse_string(fa.get_as_text())
+		fa.close()
+		if parsed is Dictionary:
+			return str(parsed.get("name", dir_name))
+	return dir_name
 
 
 func _scan_save_files() -> Array[int]:
@@ -317,10 +365,21 @@ func _get_export_dir() -> String:
 
 
 ## Closes the current project: exports a clean JSON file to the export directory,
-## then returns to the project list (or quits — caller decides).
+## clears project space, and emits project_closed.
 ## Returns true on successful export, false on failure.
 func close_project() -> bool:
 	var success := export_json()
+	# Clear hover state before freeing nodes
+	interaction.clear_hover_sets()
+	# Free all SplineNodes from the project space
+	for child in project_space.get_children():
+		if child is SplineNode:
+			child.free()
+	_project_dir = ""
+	_save_counter = 0
+	_undo_stack = []
+	_undo_index = -1
+	project_closed.emit()
 	return success
 
 
@@ -366,34 +425,12 @@ func export_json() -> bool:
 # --- Export popups ---
 
 func _on_export_succeeded(path: String) -> void:
-	_show_popup("Export saved:\n" + path.get_file(), Color(0.3, 1.0, 0.5))
+	var am = get_node_or_null("%AppManager")
+	if am:
+		am.show_popup("Export saved:\n" + path.get_file(), Color(0.3, 1.0, 0.5))
 
 
 func _on_export_failed(error: String) -> void:
-	_show_popup("Export failed:\n" + error, Color(1.0, 0.3, 0.3))
-
-
-func _show_popup(text: String, color: Color) -> void:
-	var label := Label3D.new()
-	label.text = text
-	label.font_size = 28
-	label.pixel_size = 0.001
-	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	label.modulate = color
-	label.outline_size = 8
-
-	# Position in front of the camera if available, otherwise at origin
-	var camera := get_viewport().get_camera_3d()
-	if camera:
-		label.global_position = camera.global_position - camera.global_transform.basis.z * 1.0
-	else:
-		label.global_position = Vector3(0, 1.5, -1.0)
-
-	get_tree().root.add_child(label)
-
-	# Auto-dismiss after 30 seconds
-	var timer := get_tree().create_timer(POPUP_DISMISS_TIME)
-	timer.timeout.connect(func() -> void:
-		if is_instance_valid(label):
-			label.queue_free()
-	)
+	var am = get_node_or_null("%AppManager")
+	if am:
+		am.show_popup("Export failed:\n" + error, Color(1.0, 0.3, 0.3))

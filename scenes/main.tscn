@@ -5,6 +5,7 @@
 [ext_resource type="Script" uid="uid://cxty16wgd7pct" path="res://scripts/navigation.gd" id="3"]
 [ext_resource type="Script" uid="uid://dwxtn5p34mthq" path="res://scripts/interaction.gd" id="4"]
 [ext_resource type="Script" path="res://scripts/project_manager.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/app_manager.gd" id="6"]
 
 [sub_resource type="StandardMaterial3D" id="Material_1"]
 transparency = 1
@@ -23,6 +24,7 @@ script = ExtResource("1")
 current = true
 
 [node name="XRCamera3D" type="XRCamera3D" parent="XROrigin3D" unique_id=590917505]
+unique_name_in_owner = true
 
 [node name="LeftController" type="XRController3D" parent="XROrigin3D" unique_id=1230531634]
 unique_name_in_owner = true
@@ -60,3 +62,7 @@ script = ExtResource("4")
 [node name="ProjectManager" type="Node" parent="." unique_id=3847291056]
 unique_name_in_owner = true
 script = ExtResource("5")
+
+[node name="AppManager" type="Node" parent="."]
+unique_name_in_owner = true
+script = ExtResource("6")

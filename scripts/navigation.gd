@@ -8,6 +8,7 @@ extends Node3D
 @onready var right_controller: XRController3D = %RightController
 @onready var project_space: Node3D = %ProjectSpace
 @onready var interaction: Node3D = get_parent().get_node("Interaction")
+@onready var app_manager = %AppManager
 
 # Grip state
 var left_grip_active: bool = false
@@ -68,8 +69,13 @@ func _on_grip_pressed(controller: XRController3D) -> void:
 	if not is_left and right_grip_active:
 		return
 
-	# If interaction has hovered points for this controller, let it handle the grip
 	var controller_id := 0 if is_left else 1
+
+	# If the panel is being grabbed, let the panel handle it
+	if app_manager.is_panel_grabbed(controller_id) or app_manager.is_any_panel_grabbed():
+		return
+
+	# If interaction has hovered points for this controller, let it handle the grip
 	if interaction and not interaction._get_hover_set(controller_id).is_empty():
 		return
 
@@ -180,3 +186,4 @@ func _reset_view() -> void:
 	project_space.transform = Transform3D.IDENTITY
 	left_grip_active = false
 	right_grip_active = false
+	app_manager.reset_panel_position()

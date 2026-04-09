@@ -365,9 +365,9 @@ user://projects/
    - Used for: minimum spline warning, export errors, corruption warnings
 
 ### Milestone Test
-- [ ] Panel renders in 3D space, readable text
-- [ ] Ray visible from controller to panel hit point
-- [ ] Buttons respond to trigger click via raycast
+- [x] Panel renders in 3D space, readable text
+- [x] Ray visible from controller to panel hit point
+- [x] Buttons respond to trigger click via raycast
 - [ ] Panel grab and reposition works via grip
 - [ ] Panel edge highlights on controller intersection
 - [ ] Menu button resets panel position

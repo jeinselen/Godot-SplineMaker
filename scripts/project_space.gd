@@ -1,8 +1,19 @@
 extends Node3D
 
+## Emitted when SplineNode children are added or removed.
+signal splines_changed
+
 
 func _ready() -> void:
+	child_entered_tree.connect(_on_child_changed)
+	child_exiting_tree.connect(_on_child_changed)
 	_create_axis_display()
+
+
+func _on_child_changed(node: Node) -> void:
+	if node is SplineNode:
+		# Defer to avoid emitting during tree modification
+		splines_changed.emit.call_deferred()
 
 
 func _create_axis_display() -> void:

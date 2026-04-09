@@ -7,6 +7,7 @@ extends Node3D
 @onready var right_controller: XRController3D = %RightController
 @onready var project_space: Node3D = %ProjectSpace
 @onready var project_manager = %ProjectManager
+@onready var app_manager = %AppManager
 
 var left_action_area: ActionArea
 var right_action_area: ActionArea
@@ -15,6 +16,11 @@ var right_action_area: ActionArea
 enum Mode { DRAW, MOVE, EXTRUDE, SIZE, WEIGHT }
 var current_mode: Mode = Mode.DRAW
 var curve_accuracy: float = 0.5  # 0.0 = smoothest, 1.0 = tightest fit
+
+# Selected spline tracking
+var selected_spline: SplineNode = null
+signal spline_selected(spline: SplineNode)
+signal mode_changed(mode: Mode)
 
 # Per-controller state
 var _left_trigger_active: bool = false
@@ -96,14 +102,20 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	# Update action area sizes from joystick Y (forward = larger, back = smaller)
-	left_action_area.update_size(_left_joystick.y, delta)
-	right_action_area.update_size(_right_joystick.y, delta)
+	# Check if controllers are pointing at a panel
+	var left_on_panel: bool = app_manager.is_pointing_at_panel(CONTROLLER_ID_LEFT)
+	var right_on_panel: bool = app_manager.is_pointing_at_panel(CONTROLLER_ID_RIGHT)
 
-	# Run hover detection (skip for controllers that are currently drawing)
-	if not _left_drawing:
+	# Update action area sizes from joystick Y (skip when pointing at panel)
+	if not left_on_panel:
+		left_action_area.update_size(_left_joystick.y, delta)
+	if not right_on_panel:
+		right_action_area.update_size(_right_joystick.y, delta)
+
+	# Run hover detection (skip for controllers that are drawing or pointing at panel)
+	if not _left_drawing and not left_on_panel:
 		_update_hover(CONTROLLER_ID_LEFT, left_controller, left_action_area)
-	if not _right_drawing:
+	if not _right_drawing and not right_on_panel:
 		_update_hover(CONTROLLER_ID_RIGHT, right_controller, right_action_area)
 
 	# Scale grabbed points via joystick Y while grip is active
@@ -272,6 +284,7 @@ func _finalize_drawing(controller_id: int) -> void:
 		if stroke.spline_node:
 			stroke.spline_node.set_active(true)
 			stroke.spline_node.name = "Spline"
+			select_spline(stroke.spline_node)
 
 	_clear_draw_state(controller_id)
 
@@ -309,23 +322,11 @@ func _get_draw_size(controller_id: int, action_area: ActionArea) -> float:
 	return lerpf(min_size, local_radius, curved)
 
 
-func _show_short_draw_warning(controller_id: int) -> void:
-	# Simple warning using a 3D label at the controller position
-	var controller := left_controller if controller_id == CONTROLLER_ID_LEFT else right_controller
-	var warning := Label3D.new()
-	warning.text = "Draw longer to create a spline\n(must be larger than the action area)"
-	warning.font_size = 32
-	warning.pixel_size = 0.001
-	warning.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	warning.modulate = Color(1.0, 0.9, 0.3)
-	add_child(warning)
-	warning.global_position = controller.global_position + Vector3(0, 0.1, 0)
-
-	# Auto-dismiss after 5 seconds (short for testing; spec says 30s but that's for the full panel version)
-	var timer := get_tree().create_timer(5.0)
-	timer.timeout.connect(func() -> void:
-		if is_instance_valid(warning):
-			warning.queue_free()
+func _show_short_draw_warning(_controller_id: int) -> void:
+	app_manager.show_popup(
+		"Draw longer to create a spline\n(must be larger than the action area)",
+		Color(1.0, 0.9, 0.3),
+		30.0
 	)
 
 
@@ -353,6 +354,30 @@ func clear_hover_sets() -> void:
 	_right_hover_set = []
 	_left_was_hovering = false
 	_right_was_hovering = false
+
+
+## Set the current editing mode. Called by the in-project panel.
+func set_mode(mode: Mode) -> void:
+	current_mode = mode
+	mode_changed.emit(mode)
+
+
+## Set the curve accuracy for draw mode. Called by the panel slider.
+func set_curve_accuracy(value: float) -> void:
+	curve_accuracy = clampf(value, 0.0, 1.0)
+
+
+## Select a spline (from panel list click or from interaction).
+func select_spline(spline: SplineNode) -> void:
+	if selected_spline == spline:
+		return
+	# Deselect visual on previously selected spline
+	if selected_spline and is_instance_valid(selected_spline):
+		selected_spline.set_selected(false)
+	selected_spline = spline
+	if spline and is_instance_valid(spline):
+		spline.set_selected(true)
+	spline_selected.emit(spline)
 
 
 # --- Input signal handlers ---
@@ -408,6 +433,10 @@ func _on_trigger_pressed(controller_id: int) -> void:
 		_left_trigger_active = true
 	else:
 		_right_trigger_active = true
+
+	# Skip spline interaction if pointing at a panel (panel handles its own clicks)
+	if app_manager.is_pointing_at_panel(controller_id):
+		return
 
 	var hover_set := _get_hover_set(controller_id)
 

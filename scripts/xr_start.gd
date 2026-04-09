@@ -124,10 +124,14 @@ func _on_openxr_focused_state() -> void:
 
 func _on_openxr_stopping() -> void:
 	print("OpenXR: Session stopping.")
-	# Export project JSON on app close
-	var pm = get_node_or_null("%ProjectManager")
-	if pm and pm.has_method("close_project"):
-		pm.close_project()
+	# Export project JSON on app close (via app_manager if in a project)
+	var am = get_node_or_null("%AppManager")
+	if am and am.state == am.AppState.IN_PROJECT:
+		am.close_project()
+	else:
+		var pm = get_node_or_null("%ProjectManager")
+		if pm and pm.has_method("close_project"):
+			pm.close_project()
 
 
 func _on_openxr_pose_recentered() -> void:
@@ -136,7 +140,10 @@ func _on_openxr_pose_recentered() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
-		# Ensure project export on window close (desktop testing fallback)
-		var pm = get_node_or_null("%ProjectManager")
-		if pm and pm.has_method("close_project"):
-			pm.close_project()
+		var am = get_node_or_null("%AppManager")
+		if am and am.state == am.AppState.IN_PROJECT:
+			am.close_project()
+		else:
+			var pm = get_node_or_null("%ProjectManager")
+			if pm and pm.has_method("close_project"):
+				pm.close_project()

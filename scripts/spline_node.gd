@@ -9,7 +9,8 @@ const COLOR_HOVER := Color(1.0, 0.9, 0.3)
 
 var data: SplineData
 var mesh_edge_count: int = 8
-var is_active: bool = false
+var is_active: bool = false     # True for finalized splines (not in-progress previews)
+var is_selected: bool = false   # True for the currently selected spline (visual highlight)
 
 var _mesh_instance: MeshInstance3D
 var _material: StandardMaterial3D
@@ -91,6 +92,10 @@ func mark_dirty() -> void:
 
 func set_active(active: bool) -> void:
 	is_active = active
+
+
+func set_selected(selected: bool) -> void:
+	is_selected = selected
 	_update_control_point_colors()
 
 
@@ -183,7 +188,7 @@ func _rebuild_lines() -> void:
 		return
 
 	var im := ImmediateMesh.new()
-	var line_color := COLOR_ACTIVE if is_active else COLOR_NEUTRAL
+	var line_color := COLOR_ACTIVE if is_selected else COLOR_NEUTRAL
 	_cp_line_mat.albedo_color = Color(line_color.r, line_color.g, line_color.b, 0.5)
 
 	im.surface_begin(Mesh.PRIMITIVE_LINES, _cp_line_mat)
@@ -209,9 +214,6 @@ func _update_point_visual(index: int) -> void:
 	# Color
 	if hovered or editing:
 		mi.material_override = _cp_mat_hover
-	elif is_active:
-		mi.material_override = _cp_mat_normal
-		# Use active color for active spline points
 	else:
 		mi.material_override = _cp_mat_normal
 
@@ -224,7 +226,7 @@ func _update_point_visual(index: int) -> void:
 
 func _update_control_point_colors() -> void:
 	# Update the normal material color based on active state
-	_cp_mat_normal.albedo_color = COLOR_ACTIVE if is_active else COLOR_NEUTRAL
+	_cp_mat_normal.albedo_color = COLOR_ACTIVE if is_selected else COLOR_NEUTRAL
 	# Rebuild lines to update their color
 	if data and data.point_count() >= 2:
 		_rebuild_lines()
