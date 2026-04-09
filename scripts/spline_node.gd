@@ -10,6 +10,7 @@ const XRAY_ALPHA := 0.2
 
 var data: SplineData
 var mesh_edge_count: int = 8
+var spline_resolution: int = 8
 var is_active: bool = false     # True for finalized splines (not in-progress previews)
 var is_selected: bool = false   # True for the currently selected spline (visual highlight)
 
@@ -137,8 +138,8 @@ func rebuild_mesh() -> void:
 			_mesh_instance.mesh = null
 		return
 
-	var polyline := NurbsEval.eval_curve(data)
-	var radii := NurbsEval.eval_curve_sizes(data)
+	var polyline := NurbsEval.eval_curve(data, spline_resolution)
+	var radii := NurbsEval.eval_curve_sizes(data, spline_resolution)
 	var mesh := TubeMesh.generate(polyline, radii, mesh_edge_count, data.cyclic)
 	_mesh_instance.mesh = mesh
 

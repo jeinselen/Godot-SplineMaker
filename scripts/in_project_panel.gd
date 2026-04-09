@@ -23,7 +23,6 @@ var _spline_scroll: ScrollContainer
 var _empty_label: Label
 var _props_container: VBoxContainer
 var _order_spin: SpinBox
-var _resolution_spin: SpinBox
 var _cyclic_check: CheckButton
 
 # Track spline list items for efficient updates
@@ -187,24 +186,6 @@ func _build_ui() -> void:
 	_order_spin.value_changed.connect(_on_order_changed)
 	order_row.add_child(_order_spin)
 
-	# Resolution U
-	var res_row := HBoxContainer.new()
-	res_row.add_theme_constant_override("separation", 6)
-	_props_container.add_child(res_row)
-	var res_label := Label.new()
-	res_label.text = "Resolution U"
-	res_label.add_theme_font_size_override("font_size", 18)
-	res_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-	res_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	res_row.add_child(res_label)
-	_resolution_spin = SpinBox.new()
-	_resolution_spin.min_value = 1
-	_resolution_spin.max_value = 32
-	_resolution_spin.value = 8
-	_resolution_spin.add_theme_font_size_override("font_size", 18)
-	_resolution_spin.value_changed.connect(_on_resolution_changed)
-	res_row.add_child(_resolution_spin)
-
 	# Cyclic
 	var cyclic_row := HBoxContainer.new()
 	cyclic_row.add_theme_constant_override("separation", 6)
@@ -363,7 +344,6 @@ func _update_props() -> void:
 	if has_selection:
 		_updating_props = true
 		_order_spin.value = spline.data.order_u
-		_resolution_spin.value = spline.data.resolution_u
 		_cyclic_check.button_pressed = spline.data.cyclic
 		_updating_props = false
 
@@ -377,15 +357,6 @@ func _on_order_changed(value: float) -> void:
 		spline.mark_dirty()
 		_project_manager.autosave()
 
-
-func _on_resolution_changed(value: float) -> void:
-	if _updating_props:
-		return
-	var spline: SplineNode = _interaction.selected_spline
-	if spline and is_instance_valid(spline) and spline.data:
-		spline.data.resolution_u = int(value)
-		spline.mark_dirty()
-		_project_manager.autosave()
 
 
 func _on_cyclic_toggled(toggled_on: bool) -> void:

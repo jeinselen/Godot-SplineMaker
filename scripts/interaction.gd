@@ -297,6 +297,8 @@ func _begin_drawing(controller_id: int) -> void:
 
 	var stroke := DrawStroke.new()
 	stroke.smoothing = curve_smoothness
+	stroke.mesh_edge_count = app_manager.settings.preview_mesh_resolution
+	stroke.spline_resolution = app_manager.settings.preview_spline_resolution
 	stroke.begin(pos, size_val, project_space)
 
 	if controller_id == CONTROLLER_ID_LEFT:

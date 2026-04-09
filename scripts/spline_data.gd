@@ -2,7 +2,6 @@ class_name SplineData
 extends Resource
 
 var order_u: int = 4
-var resolution_u: int = 8
 var cyclic: bool = false
 var points: PackedVector3Array = PackedVector3Array()
 var sizes: PackedFloat32Array = PackedFloat32Array()

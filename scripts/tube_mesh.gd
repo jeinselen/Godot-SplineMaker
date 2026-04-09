@@ -1,7 +1,8 @@
 class_name TubeMesh
 
-## Number of latitude rings for hemisphere end caps.
-const CAP_RINGS := 4
+## Number of latitude rings for hemisphere end caps (half the mesh resolution).
+static func _cap_rings(edge_count: int) -> int:
+	return maxi(edge_count / 2, 1)
 
 
 ## Generate a tube mesh from a polyline with per-point radii.
@@ -168,8 +169,7 @@ static func _correct_cyclic_twist(
 
 ## Returns the number of vertices added by one hemisphere cap.
 static func _cap_vertex_count(edge_count: int) -> int:
-	# CAP_RINGS latitude rings of edge_count verts each, plus 1 pole vertex
-	return CAP_RINGS * edge_count + 1
+	return _cap_rings(edge_count) * edge_count + 1
 
 
 ## Add a hemisphere end cap. is_start=true faces backward along -tangent (start cap).
@@ -187,8 +187,9 @@ static func _add_hemisphere_cap(
 	var cap_dir := -tangent if is_start else tangent
 
 	# Generate latitude rings from equator toward pole
-	for lat in range(1, CAP_RINGS + 1):
-		var phi := (PI / 2.0) * float(lat) / float(CAP_RINGS)
+	var cap_rings := _cap_rings(edge_count)
+	for lat in range(1, cap_rings + 1):
+		var phi := (PI / 2.0) * float(lat) / float(cap_rings)
 		var ring_radius := radius * cos(phi)
 		var ring_offset := radius * sin(phi)
 		var ring_center := center + cap_dir * ring_offset
@@ -257,7 +258,7 @@ static func _add_hemisphere_cap(
 			st.add_index(eq_b)
 
 	# Connect successive latitude rings
-	for lat in range(CAP_RINGS - 1):
+	for lat in range(cap_rings - 1):
 		var ring_a := vert_offset + lat * edge_count
 		var ring_b := vert_offset + (lat + 1) * edge_count
 		for j in edge_count:
@@ -282,8 +283,8 @@ static func _add_hemisphere_cap(
 				st.add_index(d)
 
 	# Connect last latitude ring to pole
-	var last_ring := vert_offset + (CAP_RINGS - 1) * edge_count
-	var pole_idx := vert_offset + CAP_RINGS * edge_count
+	var last_ring := vert_offset + (cap_rings - 1) * edge_count
+	var pole_idx := vert_offset + cap_rings * edge_count
 	for j in edge_count:
 		var j_next := (j + 1) % edge_count
 		if is_start:

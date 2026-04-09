@@ -131,24 +131,23 @@ static func _eval_rational_scalar(
 
 
 ## Evaluate the full NURBS curve, returning an array of 3D points.
-static func eval_curve(data: SplineData) -> PackedVector3Array:
+## resolution = number of samples per curve segment.
+static func eval_curve(data: SplineData, resolution: int) -> PackedVector3Array:
 	var n := data.point_count()
 	if n < 2:
 		return data.points.duplicate()
 
 	var k := data.effective_order()
-	var result := PackedVector3Array()
 
 	if data.cyclic:
-		result = _eval_curve_cyclic(data.points, data.weights, n, k, data.resolution_u)
+		return _eval_curve_cyclic(data.points, data.weights, n, k, resolution)
 	else:
-		result = _eval_curve_clamped(data.points, data.weights, n, k, data.resolution_u)
-
-	return result
+		return _eval_curve_clamped(data.points, data.weights, n, k, resolution)
 
 
 ## Evaluate per-point radii along the curve (same parameterization as eval_curve).
-static func eval_curve_sizes(data: SplineData) -> PackedFloat32Array:
+## resolution = number of samples per curve segment.
+static func eval_curve_sizes(data: SplineData, resolution: int) -> PackedFloat32Array:
 	var n := data.point_count()
 	if n < 2:
 		return data.sizes.duplicate()
@@ -156,9 +155,9 @@ static func eval_curve_sizes(data: SplineData) -> PackedFloat32Array:
 	var k := data.effective_order()
 
 	if data.cyclic:
-		return _eval_sizes_cyclic(data.sizes, data.weights, n, k, data.resolution_u)
+		return _eval_sizes_cyclic(data.sizes, data.weights, n, k, resolution)
 	else:
-		return _eval_sizes_clamped(data.sizes, data.weights, n, k, data.resolution_u)
+		return _eval_sizes_clamped(data.sizes, data.weights, n, k, resolution)
 
 
 # --- Non-cyclic evaluation ---

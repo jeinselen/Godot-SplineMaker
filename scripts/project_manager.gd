@@ -18,6 +18,10 @@ const JSON_VERSION := 1
 ## Directory where exported JSON files are written on project close.
 ## Defaults to user://exports/ on Quest 3; overridden by settings.
 @export var export_directory: String = ""
+## Preview mesh resolution (edge count) applied to spline nodes on load/restore.
+var preview_mesh_resolution: int = 8
+## Preview spline resolution (samples per segment) applied to spline nodes on load/restore.
+var preview_spline_resolution: int = 8
 
 signal export_succeeded(path: String)
 signal export_failed(error: String)
@@ -310,7 +314,6 @@ func _serialize_state() -> Dictionary:
 				})
 			splines_data.append({
 				"order_u": sn.data.order_u,
-				"resolution_u": sn.data.resolution_u,
 				"cyclic": sn.data.cyclic,
 				"points": pts,
 			})
@@ -343,7 +346,6 @@ func _restore_state(state: Dictionary) -> void:
 	for spline_dict in state.get("splines", []):
 		var sd := SplineData.new()
 		sd.order_u = int(spline_dict.get("order_u", 4))
-		sd.resolution_u = int(spline_dict.get("resolution_u", 8))
 		sd.cyclic = bool(spline_dict.get("cyclic", false))
 		for pt in spline_dict.get("points", []):
 			sd.add_point(
@@ -354,6 +356,8 @@ func _restore_state(state: Dictionary) -> void:
 		var sn := SplineNode.new()
 		sn.name = "Spline"
 		sn.data = sd
+		sn.mesh_edge_count = preview_mesh_resolution
+		sn.spline_resolution = preview_spline_resolution
 		project_space.add_child(sn)
 		sn.set_active(true)
 		sn.mark_dirty()

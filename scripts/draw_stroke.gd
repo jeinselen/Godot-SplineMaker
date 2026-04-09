@@ -13,6 +13,11 @@ extends RefCounted
 ## 0.0 = minimal smoothing, more points. 1.0 = heavy smoothing, fewer points.
 var smoothing: float = 0.5
 
+## Number of vertices around each cross-section ring for preview mesh.
+var mesh_edge_count: int = 8
+## Samples per NURBS segment for preview mesh.
+var spline_resolution: int = 8
+
 ## The spline node being built (lives under ProjectSpace).
 var spline_node: SplineNode = null
 
@@ -48,6 +53,8 @@ func begin(start_pos: Vector3, start_size: float, parent: Node3D) -> void:
 
 	spline_node = SplineNode.new()
 	spline_node.name = "DrawPreview"
+	spline_node.mesh_edge_count = mesh_edge_count
+	spline_node.spline_resolution = spline_resolution
 	parent.add_child(spline_node)
 
 	# Tip mesh for the leading edge
@@ -135,7 +142,7 @@ func _update_tip() -> void:
 	var tip_points := PackedVector3Array([last_committed, mid, _smoothed_pos])
 	var tip_sizes := PackedFloat32Array([last_size, mid_size, _smoothed_size])
 
-	_tip_mesh_instance.mesh = TubeMesh.generate(tip_points, tip_sizes, 8, false)
+	_tip_mesh_instance.mesh = TubeMesh.generate(tip_points, tip_sizes, mesh_edge_count, false)
 
 
 ## Call on trigger release. Returns total smoothed path length.

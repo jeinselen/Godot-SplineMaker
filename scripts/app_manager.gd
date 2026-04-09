@@ -23,6 +23,8 @@ func _ready() -> void:
 	project_manager.max_undo_steps = settings.max_undo_steps
 	project_manager.autosave_delay = settings.autosave_delay
 	project_manager.export_directory = settings.export_directory
+	project_manager.preview_mesh_resolution = settings.preview_mesh_resolution
+	project_manager.preview_spline_resolution = settings.preview_spline_resolution
 
 	# Hide project space and action areas until a project is opened
 	project_space.visible = false
@@ -39,6 +41,7 @@ const DEFAULT_PROJECT_OFFSET := Vector3(0.0, 0.5, -0.75)
 func open_project(dir_name: String) -> void:
 	_destroy_active_panel()
 	project_manager.open_project(dir_name)
+	_apply_preview_settings()
 	project_space.visible = true
 	project_space.transform = Transform3D(Basis.IDENTITY, DEFAULT_PROJECT_OFFSET)
 	state = AppState.IN_PROJECT
@@ -146,3 +149,17 @@ func apply_settings() -> void:
 	project_manager.max_undo_steps = settings.max_undo_steps
 	project_manager.autosave_delay = settings.autosave_delay
 	project_manager.export_directory = settings.export_directory
+	project_manager.preview_mesh_resolution = settings.preview_mesh_resolution
+	project_manager.preview_spline_resolution = settings.preview_spline_resolution
+	_apply_preview_settings()
+
+
+## Update mesh and spline resolution on all spline nodes in the project.
+func _apply_preview_settings() -> void:
+	var mesh_res := settings.preview_mesh_resolution
+	var spline_res := settings.preview_spline_resolution
+	for child in project_space.get_children():
+		if child is SplineNode:
+			child.mesh_edge_count = mesh_res
+			child.spline_resolution = spline_res
+			child.mark_dirty()

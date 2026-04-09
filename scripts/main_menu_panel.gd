@@ -19,6 +19,7 @@ var _undo_steps_spin: SpinBox
 var _autosave_delay_spin: SpinBox
 var _panel_side_btn: Button
 var _mesh_res_spin: SpinBox
+var _spline_res_spin: SpinBox
 
 # Delete confirmation state
 var _delete_confirm_dir: String = ""
@@ -240,6 +241,23 @@ func _build_settings_view() -> void:
 	_mesh_res_spin.add_theme_font_size_override("font_size", 18)
 	mesh_row.add_child(_mesh_res_spin)
 
+	# Spline Resolution
+	var spline_row := HBoxContainer.new()
+	spline_row.add_theme_constant_override("separation", 6)
+	_settings_view.add_child(spline_row)
+	var spline_label := Label.new()
+	spline_label.text = "Spline Resolution"
+	spline_label.add_theme_font_size_override("font_size", 18)
+	spline_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+	spline_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spline_row.add_child(spline_label)
+	_spline_res_spin = SpinBox.new()
+	_spline_res_spin.min_value = 1
+	_spline_res_spin.max_value = 32
+	_spline_res_spin.value = _app_manager.settings.preview_spline_resolution
+	_spline_res_spin.add_theme_font_size_override("font_size", 18)
+	spline_row.add_child(_spline_res_spin)
+
 	# Back button
 	var back_btn := Button.new()
 	back_btn.text = "Back"
@@ -404,6 +422,7 @@ func _on_settings_back_pressed() -> void:
 	_app_manager.settings.autosave_delay = _autosave_delay_spin.value
 	_app_manager.settings.panel_side = "left" if _panel_side_btn.text == "Left" else "right"
 	_app_manager.settings.preview_mesh_resolution = int(_mesh_res_spin.value)
+	_app_manager.settings.preview_spline_resolution = int(_spline_res_spin.value)
 	_app_manager.apply_settings()
 
 	# Show main content, hide settings

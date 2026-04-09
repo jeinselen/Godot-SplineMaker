@@ -10,6 +10,7 @@ var max_undo_steps: int = 32
 var autosave_delay: float = 2.0   # seconds to wait before committing an autosave
 var panel_side: String = "left"   # "left" or "right"
 var preview_mesh_resolution: int = 8
+var preview_spline_resolution: int = 8
 
 
 func load_from_file() -> void:
@@ -27,6 +28,7 @@ func load_from_file() -> void:
 	var side: String = str(d.get("panel_side", "left"))
 	panel_side = side if side in ["left", "right"] else "left"
 	preview_mesh_resolution = clampi(int(d.get("preview_mesh_resolution", 8)), 3, 32)
+	preview_spline_resolution = clampi(int(d.get("preview_spline_resolution", 8)), 1, 32)
 
 
 func save_to_file() -> void:
@@ -36,6 +38,7 @@ func save_to_file() -> void:
 		"autosave_delay": autosave_delay,
 		"panel_side": panel_side,
 		"preview_mesh_resolution": preview_mesh_resolution,
+		"preview_spline_resolution": preview_spline_resolution,
 	}
 	var fa := FileAccess.open(SETTINGS_PATH, FileAccess.WRITE)
 	if fa:
