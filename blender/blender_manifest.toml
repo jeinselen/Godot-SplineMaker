@@ -1,0 +1,24 @@
+schema_version = "1.0.0"
+
+id = "spline_maker_io"
+version = "1.0.0"
+name = "Spline Maker I/O"
+tagline = "Import and export SplineMaker JSON projects as Blender NURBS curves"
+maintainer = "OpenAI Codex"
+type = "add-on"
+
+blender_version_min = "5.1.0"
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
+
+[permissions]
+files = "Import and export SplineMaker project files"
+
+[build]
+paths_exclude_pattern = [
+  "__pycache__/",
+  "/.git/",
+  "/*.zip",
+]
