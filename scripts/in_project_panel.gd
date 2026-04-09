@@ -120,7 +120,7 @@ func _build_ui() -> void:
 	vbox.add_child(_accuracy_container)
 
 	var acc_label := Label.new()
-	acc_label.text = "Accuracy"
+	acc_label.text = "Smoothness"
 	acc_label.add_theme_font_size_override("font_size", 18)
 	acc_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
 	_accuracy_container.add_child(acc_label)
@@ -129,7 +129,7 @@ func _build_ui() -> void:
 	_accuracy_slider.min_value = 0.0
 	_accuracy_slider.max_value = 1.0
 	_accuracy_slider.step = 0.05
-	_accuracy_slider.value = _interaction.curve_accuracy
+	_accuracy_slider.value = _interaction.curve_smoothness
 	_accuracy_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_accuracy_slider.value_changed.connect(_on_accuracy_changed)
 	_accuracy_container.add_child(_accuracy_slider)
@@ -285,7 +285,7 @@ func _update_mode_buttons() -> void:
 
 
 func _on_accuracy_changed(value: float) -> void:
-	_interaction.set_curve_accuracy(value)
+	_interaction.set_curve_smoothness(value)
 
 
 # --- Spline list ---

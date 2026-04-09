@@ -15,7 +15,7 @@ var right_action_area: ActionArea
 # Mode state — Size and Weight control joystick behavior on hovered points
 enum Mode { SIZE, WEIGHT }
 var current_mode: Mode = Mode.SIZE
-var curve_accuracy: float = 0.5  # 0.0 = smoothest, 1.0 = tightest fit
+var curve_smoothness: float = 0.5  # 0.0 = smoothest, 1.0 = tightest fit
 
 # Selected spline tracking
 var selected_spline: SplineNode = null
@@ -280,7 +280,7 @@ func _begin_drawing(controller_id: int) -> void:
 		_right_trigger_floor = trigger_val
 
 	var stroke := DrawStroke.new()
-	stroke.smoothing = curve_accuracy
+	stroke.smoothing = curve_smoothness
 	stroke.begin(pos, size_val, project_space)
 
 	if controller_id == CONTROLLER_ID_LEFT:
@@ -580,8 +580,8 @@ func set_mode(mode: Mode) -> void:
 
 
 ## Set the curve accuracy for draw mode. Called by the panel slider.
-func set_curve_accuracy(value: float) -> void:
-	curve_accuracy = clampf(value, 0.0, 1.0)
+func set_curve_smoothness(value: float) -> void:
+	curve_smoothness = clampf(value, 0.0, 1.0)
 
 
 ## Select a spline (from panel list click or from interaction).

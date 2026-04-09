@@ -304,6 +304,7 @@ func _serialize_state() -> Dictionary:
 			})
 	return {
 		"version": JSON_VERSION,
+		"curve_smoothness": interaction.curve_smoothness,
 		"splines": splines_data,
 		"action_area_sizes": {
 			"left": interaction.left_action_area.radius,
@@ -349,6 +350,9 @@ func _restore_state(state: Dictionary) -> void:
 	# Auto-select the last spline so there's always a selection
 	if last_spline:
 		interaction.select_spline(last_spline)
+
+	# Restore curve smoothness
+	interaction.set_curve_smoothness(float(state.get("curve_smoothness", 0.5)))
 
 	# Restore action area sizes
 	var aa: Dictionary = state.get("action_area_sizes", {})
