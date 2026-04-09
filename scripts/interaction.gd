@@ -106,16 +106,16 @@ func _process(delta: float) -> void:
 	var left_on_panel: bool = app_manager.is_pointing_at_panel(CONTROLLER_ID_LEFT)
 	var right_on_panel: bool = app_manager.is_pointing_at_panel(CONTROLLER_ID_RIGHT)
 
-	# Update action area sizes from joystick Y (skip when pointing at panel)
-	if not left_on_panel:
+	# Update action area sizes from joystick Y (skip when pointing at panel or areas hidden)
+	if not left_on_panel and left_action_area.visible:
 		left_action_area.update_size(_left_joystick.y, delta)
-	if not right_on_panel:
+	if not right_on_panel and right_action_area.visible:
 		right_action_area.update_size(_right_joystick.y, delta)
 
-	# Run hover detection (skip for controllers that are drawing or pointing at panel)
-	if not _left_drawing and not left_on_panel:
+	# Run hover detection (skip for controllers that are drawing, pointing at panel, or areas hidden)
+	if not _left_drawing and not left_on_panel and left_action_area.visible:
 		_update_hover(CONTROLLER_ID_LEFT, left_controller, left_action_area)
-	if not _right_drawing and not right_on_panel:
+	if not _right_drawing and not right_on_panel and right_action_area.visible:
 		_update_hover(CONTROLLER_ID_RIGHT, right_controller, right_action_area)
 
 	# Scale grabbed points via joystick Y while grip is active
@@ -356,6 +356,12 @@ func clear_hover_sets() -> void:
 	_right_was_hovering = false
 
 
+## Show or hide the action area spheres on controllers.
+func set_action_areas_visible(vis: bool) -> void:
+	left_action_area.visible = vis
+	right_action_area.visible = vis
+
+
 ## Set the current editing mode. Called by the in-project panel.
 func set_mode(mode: Mode) -> void:
 	current_mode = mode
@@ -436,6 +442,10 @@ func _on_trigger_pressed(controller_id: int) -> void:
 
 	# Skip spline interaction if pointing at a panel (panel handles its own clicks)
 	if app_manager.is_pointing_at_panel(controller_id):
+		return
+
+	# Skip spline interaction when action areas are hidden (main menu state)
+	if not left_action_area.visible:
 		return
 
 	var hover_set := _get_hover_set(controller_id)

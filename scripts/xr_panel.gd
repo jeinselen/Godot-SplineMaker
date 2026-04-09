@@ -52,6 +52,9 @@ var _grab_controller_id: int = -1
 var _grab_initial_ctrl_transform: Transform3D
 var _grab_initial_panel_transform: Transform3D
 
+# Controller exclusivity — first pointer locks out the second
+var _exclusive_controller: int = -1
+
 # Edge overlap state (per controller)
 var _edge_overlap: Array[bool] = [false, false]
 var _was_edge_overlap: Array[bool] = [false, false]
@@ -125,9 +128,23 @@ func _process(_delta: float) -> void:
 	if _grabbed:
 		_update_grab()
 
+	# Release exclusivity if the exclusive controller is no longer pointing or grabbing
+	if _exclusive_controller >= 0:
+		if not _pointing[_exclusive_controller] and not (_grabbed and _grab_controller_id == _exclusive_controller):
+			_exclusive_controller = -1
+
 	# Raycast both controllers
 	_update_raycast(0, _left_controller)
 	_update_raycast(1, _right_controller)
+
+	# Assign exclusivity — first pointer wins
+	if _exclusive_controller < 0:
+		if _pointing[0] and not _pointing[1]:
+			_exclusive_controller = 0
+		elif _pointing[1] and not _pointing[0]:
+			_exclusive_controller = 1
+		elif _pointing[0] and _pointing[1]:
+			_exclusive_controller = 0  # tie-break: left wins
 
 	# Update edge overlap detection
 	_update_edge_overlap(0, _left_controller)
@@ -167,17 +184,19 @@ func is_grabbed_by(controller_id: int) -> bool:
 ## Position the panel relative to a camera, offset to the given side.
 func reset_position(camera: XRCamera3D, side: String = "left") -> void:
 	var cam_t := camera.global_transform
-	var forward := -cam_t.basis.z
-	var right := cam_t.basis.x
-	var up := cam_t.basis.y
 
-	# Place 0.6m in front, 0.35m to the side, 0.15m below eye level
+	# Use world-aligned horizontal forward (ignore head pitch/roll)
+	var cam_forward := -cam_t.basis.z
+	var horizontal_forward := Vector3(cam_forward.x, 0.0, cam_forward.z).normalized()
+	var horizontal_right := Vector3.UP.cross(horizontal_forward).normalized()
+
+	# Place 0.8m in front, 0.35m to the side, 0.05m below eye level
 	var side_offset := -0.35 if side == "left" else 0.35
-	var target_pos := cam_t.origin + forward * 0.6 + right * side_offset + up * -0.15
+	var target_pos := cam_t.origin + horizontal_forward * 0.8 + horizontal_right * side_offset + Vector3.UP * -0.05
 
 	# Face the camera: look_at points -Z at target, but QuadMesh faces +Z,
 	# so we look away from the camera to make the front face visible.
-	var away_target := target_pos + (target_pos - cam_t.origin)
+	var away_target := target_pos + horizontal_forward
 	global_transform = Transform3D.IDENTITY
 	global_position = target_pos
 	look_at(away_target, Vector3.UP)
@@ -294,6 +313,11 @@ func _update_raycast(controller_id: int, controller: XRController3D) -> void:
 	var v := (-hit_local.y + half_h) / (half_h * 2.0)
 	_hit_uv[controller_id] = Vector2(u, v)
 
+	# Suppress input for non-exclusive controller
+	if _exclusive_controller >= 0 and _exclusive_controller != controller_id:
+		_set_pointing(controller_id, false)
+		return
+
 	_set_pointing(controller_id, true)
 
 	# Inject mouse motion event
@@ -323,6 +347,8 @@ func _set_pointing(controller_id: int, pointing: bool) -> void:
 
 func _on_trigger_for_click(button_name: String, controller_id: int) -> void:
 	if button_name != "trigger_click":
+		return
+	if _exclusive_controller >= 0 and _exclusive_controller != controller_id:
 		return
 	if not _pointing[controller_id]:
 		return
@@ -432,7 +458,7 @@ func _on_controller_button_pressed(button_name: String, controller_id: int) -> v
 
 	if not grabbable or _grabbed:
 		return
-	if not _edge_overlap[controller_id]:
+	if not _edge_overlap[controller_id] and not _pointing[controller_id]:
 		return
 
 	# Begin grab
@@ -459,7 +485,18 @@ func _on_controller_button_released(button_name: String, controller_id: int) -> 
 func _update_grab() -> void:
 	var ctrl := _left_controller if _grab_controller_id == 0 else _right_controller
 	var delta_transform := ctrl.global_transform * _grab_initial_ctrl_transform.inverse()
+
+	# Apply 1:1 translation
 	global_transform = delta_transform * _grab_initial_panel_transform
+
+	# Lock to yaw only: project facing direction onto horizontal plane
+	var pos := global_position
+	var face_dir := global_transform.basis.z
+	var horizontal_face := Vector3(face_dir.x, 0.0, face_dir.z).normalized()
+	var look_target := pos - horizontal_face
+	global_transform = Transform3D.IDENTITY
+	global_position = pos
+	look_at(look_target, Vector3.UP)
 
 
 # --- Ray line drawing ---

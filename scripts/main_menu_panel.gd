@@ -16,7 +16,7 @@ var _settings_view: VBoxContainer
 # Settings controls
 var _export_path_edit: LineEdit
 var _undo_steps_spin: SpinBox
-var _panel_side_option: OptionButton
+var _panel_side_btn: Button
 var _mesh_res_spin: SpinBox
 
 # Delete confirmation state
@@ -49,11 +49,13 @@ func _ready() -> void:
 ## Position centered in front of the camera (overrides side offset).
 func reset_position(camera: XRCamera3D, _side: String = "center") -> void:
 	var cam_t := camera.global_transform
-	var forward := -cam_t.basis.z
-	var up := cam_t.basis.y
 
-	var target_pos := cam_t.origin + forward * 0.7 + up * -0.1
-	var away_target := target_pos + (target_pos - cam_t.origin)
+	# Use world-aligned horizontal forward (ignore head pitch/roll)
+	var cam_forward := -cam_t.basis.z
+	var horizontal_forward := Vector3(cam_forward.x, 0.0, cam_forward.z).normalized()
+
+	var target_pos := cam_t.origin + horizontal_forward * 0.9 + Vector3.UP * 0.1
+	var away_target := target_pos + horizontal_forward
 
 	global_transform = Transform3D.IDENTITY
 	global_position = target_pos
@@ -118,6 +120,12 @@ func _build_ui() -> void:
 	settings_btn.add_theme_font_size_override("font_size", 20)
 	settings_btn.pressed.connect(_on_settings_pressed)
 	_main_vbox.add_child(settings_btn)
+
+	var quit_btn := Button.new()
+	quit_btn.text = "Quit"
+	quit_btn.add_theme_font_size_override("font_size", 20)
+	quit_btn.pressed.connect(_on_quit_pressed)
+	_main_vbox.add_child(quit_btn)
 
 	# --- Settings view (hidden by default) ---
 	_build_settings_view()
@@ -189,12 +197,11 @@ func _build_settings_view() -> void:
 	side_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
 	side_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	side_row.add_child(side_label)
-	_panel_side_option = OptionButton.new()
-	_panel_side_option.add_item("Left", 0)
-	_panel_side_option.add_item("Right", 1)
-	_panel_side_option.selected = 0 if _app_manager.settings.panel_side == "left" else 1
-	_panel_side_option.add_theme_font_size_override("font_size", 18)
-	side_row.add_child(_panel_side_option)
+	_panel_side_btn = Button.new()
+	_panel_side_btn.text = _app_manager.settings.panel_side.capitalize()
+	_panel_side_btn.add_theme_font_size_override("font_size", 18)
+	_panel_side_btn.pressed.connect(_on_panel_side_toggled)
+	side_row.add_child(_panel_side_btn)
 
 	# Mesh Resolution
 	var mesh_row := HBoxContainer.new()
@@ -283,6 +290,10 @@ func _on_new_project_pressed() -> void:
 	_app_manager.create_and_open_project()
 
 
+func _on_quit_pressed() -> void:
+	get_tree().quit()
+
+
 # --- Rename ---
 
 func _on_project_rename_pressed(dir_name: String, row: HBoxContainer) -> void:
@@ -307,8 +318,8 @@ func _on_project_rename_pressed(dir_name: String, row: HBoxContainer) -> void:
 	cancel_btn.pressed.connect(func() -> void: _refresh_project_list())
 	row.add_child(cancel_btn)
 
-	# Open virtual keyboard on Android/Quest 3
-	DisplayServer.virtual_keyboard_show(_rename_edit.text)
+	# Open virtual keyboard on Android/Quest 3 (deferred to let focus settle)
+	_show_virtual_keyboard(_rename_edit.text)
 
 
 func _on_rename_submitted(new_name: String, dir_name: String) -> void:
@@ -370,7 +381,7 @@ func _on_settings_back_pressed() -> void:
 	# Save settings
 	_app_manager.settings.export_directory = _export_path_edit.text
 	_app_manager.settings.max_undo_steps = int(_undo_steps_spin.value)
-	_app_manager.settings.panel_side = "left" if _panel_side_option.selected == 0 else "right"
+	_app_manager.settings.panel_side = "left" if _panel_side_btn.text == "Left" else "right"
 	_app_manager.settings.preview_mesh_resolution = int(_mesh_res_spin.value)
 	_app_manager.apply_settings()
 
@@ -383,11 +394,24 @@ func _on_settings_back_pressed() -> void:
 	_refresh_project_list()
 
 
+func _on_panel_side_toggled() -> void:
+	if _panel_side_btn.text == "Left":
+		_panel_side_btn.text = "Right"
+	else:
+		_panel_side_btn.text = "Left"
+
+
 func _on_export_path_edit_pressed() -> void:
 	_export_path_edit.grab_focus()
-	DisplayServer.virtual_keyboard_show(_export_path_edit.text)
+	_show_virtual_keyboard(_export_path_edit.text)
 
 
 func _on_export_path_submitted(new_text: String) -> void:
 	DisplayServer.virtual_keyboard_hide()
 	_export_path_edit.text = new_text
+
+
+## Show virtual keyboard after a frame delay so LineEdit focus settles first.
+func _show_virtual_keyboard(text: String) -> void:
+	await get_tree().process_frame
+	DisplayServer.virtual_keyboard_show(text)

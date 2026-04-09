@@ -23,8 +23,9 @@ func _ready() -> void:
 	project_manager.max_undo_steps = settings.max_undo_steps
 	project_manager.export_directory = settings.export_directory
 
-	# Hide project space until a project is opened
+	# Hide project space and action areas until a project is opened
 	project_space.visible = false
+	interaction.set_action_areas_visible(false)
 
 	# Start at main menu
 	_enter_main_menu()
@@ -32,11 +33,16 @@ func _ready() -> void:
 
 # --- State transitions ---
 
+const DEFAULT_PROJECT_OFFSET := Vector3(0.0, 0.5, -0.75)
+
 func open_project(dir_name: String) -> void:
 	_destroy_active_panel()
 	project_manager.open_project(dir_name)
 	project_space.visible = true
+	project_space.transform = Transform3D(Basis.IDENTITY, DEFAULT_PROJECT_OFFSET)
 	state = AppState.IN_PROJECT
+
+	interaction.set_action_areas_visible(true)
 
 	# Set default mode based on spline count
 	var has_splines := _count_splines() > 0
@@ -52,15 +58,21 @@ func create_and_open_project() -> void:
 	_destroy_active_panel()
 	project_manager.create_new_project()
 	project_space.visible = true
+	project_space.transform = Transform3D(Basis.IDENTITY, DEFAULT_PROJECT_OFFSET)
 	state = AppState.IN_PROJECT
+	interaction.set_action_areas_visible(true)
 	interaction.set_mode(interaction.Mode.DRAW)
 	_create_in_project_panel()
 
 
 func close_project() -> void:
 	_destroy_active_panel()
+	# Clear selection and hover state before freeing SplineNodes
+	interaction.select_spline(null)
+	interaction.clear_hover_sets()
 	project_manager.close_project()
 	project_space.visible = false
+	interaction.set_action_areas_visible(false)
 	state = AppState.MAIN_MENU
 	_enter_main_menu()
 

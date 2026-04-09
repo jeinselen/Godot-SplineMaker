@@ -368,8 +368,8 @@ user://projects/
 - [x] Panel renders in 3D space, readable text
 - [x] Ray visible from controller to panel hit point
 - [x] Buttons respond to trigger click via raycast
-- [ ] Panel grab and reposition works via grip
-- [ ] Panel edge highlights on controller intersection
+- [x] Panel grab and reposition works via grip
+- [x] Panel edge highlights on controller intersection
 - [ ] Menu button resets panel position
 - [ ] Mode selection works; only one active
 - [ ] Curve Accuracy slider appears/disappears with Draw mode

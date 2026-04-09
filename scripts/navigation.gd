@@ -71,8 +71,8 @@ func _on_grip_pressed(controller: XRController3D) -> void:
 
 	var controller_id := 0 if is_left else 1
 
-	# If the panel is being grabbed, let the panel handle it
-	if app_manager.is_panel_grabbed(controller_id) or app_manager.is_any_panel_grabbed():
+	# If the controller is pointing at or grabbing a panel, let the panel handle it
+	if app_manager.is_pointing_at_panel(controller_id) or app_manager.is_panel_grabbed(controller_id) or app_manager.is_any_panel_grabbed():
 		return
 
 	# If interaction has hovered points for this controller, let it handle the grip
@@ -182,8 +182,10 @@ func _basis_from_two_points(left_pos: Vector3, right_pos: Vector3) -> Basis:
 
 # --- View reset ---
 
+const DEFAULT_PROJECT_OFFSET := Vector3(0.0, 0.5, -0.75)
+
 func _reset_view() -> void:
-	project_space.transform = Transform3D.IDENTITY
+	project_space.transform = Transform3D(Basis.IDENTITY, DEFAULT_PROJECT_OFFSET)
 	left_grip_active = false
 	right_grip_active = false
 	app_manager.reset_panel_position()
