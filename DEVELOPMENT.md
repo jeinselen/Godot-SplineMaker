@@ -412,18 +412,16 @@ user://projects/
    - Triggers autosave/undo stage
 
 ### Milestone Test
-- [ ] Translate: point moves with controller, saves on release
+- [x] Translate: point moves with controller, saves on release
 - [ ] Move: entire spline translates/rotates
 - [ ] Move: joystick scales spline + size values proportionally
 - [ ] Move: selects spline in panel list
-- [ ] Extrude: new point created from valid endpoint
-- [ ] Extrude: multiple endpoints extrude simultaneously
-- [ ] Extrude: mid-spline points fall back to translate
-- [ ] Size: joystick changes size, mesh updates in realtime
-- [ ] Size: trigger translates point, joystick still changes size
-- [ ] Weight: joystick changes weight within bounds, mesh updates
-- [ ] Weight: trigger translates point, joystick still changes weight
-- [ ] Delete: Y/B + trigger removes point, undo restores it
+- [x] Extrude: new point created from valid endpoint
+- [x] Extrude: multiple endpoints extrude simultaneously
+- [x] Size: joystick changes size, mesh updates in realtime
+- [x] Size: grip translates point, joystick changes scaling of point position within the active area relative to the controller
+- [x] Weight: joystick changes weight within bounds, mesh updates
+- [x] Delete: Y/B + trigger removes point, undo restores it
 - [ ] All edits trigger autosave on trigger release
 
 ---

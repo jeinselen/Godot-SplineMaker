@@ -47,9 +47,14 @@ var _left_trigger_floor: float = 0.0
 var _right_trigger_floor: float = 0.0
 
 # Extrude/insert state: tracks newly created points being moved by trigger hold
-# Array of {spline: SplineNode, index: int, initial_ctrl_pos: Vector3}
+# Single-point: {spline, index} — snaps to controller position
+# Multi-point: {spline, index, initial_pos} — delta-transform like grip
 var _left_extruding: Array[Dictionary] = []
 var _right_extruding: Array[Dictionary] = []
+var _extrude_multi: Array[bool] = [false, false]  # true when multi-point extrude
+var _extrude_initial_pos: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
+var _extrude_initial_basis: Array[Basis] = [Basis.IDENTITY, Basis.IDENTITY]
+var _extrude_scale: Array[float] = [1.0, 1.0]
 
 # Grip-translate state (per controller): grip moves hovered points instead of project space
 var _left_grip_translating: bool = false
@@ -129,21 +134,24 @@ func _process(delta: float) -> void:
 	var right_on_panel: bool = app_manager.is_pointing_at_panel(CONTROLLER_ID_RIGHT)
 
 	# Joystick behavior:
-	# Hovering points → edit size/weight (unless grip-translating, which uses joystick for scale)
+	# Grip-translating or extruding → joystick scales point positions (handled below)
+	# Hovering points (idle) → edit size/weight based on mode
 	# Pointing at panel → panel handles scroll
 	# Neither → resize action area
+	var left_busy := _left_grip_translating or not _left_extruding.is_empty()
+	var right_busy := _right_grip_translating or not _right_extruding.is_empty()
 	if left_action_area.visible:
-		if left_hovering and not _left_grip_translating:
+		if left_hovering and not left_busy:
 			_update_joystick_edit(CONTROLLER_ID_LEFT, delta)
-		elif not left_on_panel:
+		elif not left_on_panel and not left_busy:
 			left_action_area.update_size(_left_joystick.y, delta)
 	if right_action_area.visible:
-		if right_hovering and not _right_grip_translating:
+		if right_hovering and not right_busy:
 			_update_joystick_edit(CONTROLLER_ID_RIGHT, delta)
-		elif not right_on_panel:
+		elif not right_on_panel and not right_busy:
 			right_action_area.update_size(_right_joystick.y, delta)
 
-	# Scale grabbed points via joystick Y while grip is active
+	# Scale grabbed/extruded points via joystick Y while grip or multi-extrude is active
 	if _left_grip_translating:
 		var joy_y := _left_joystick.y
 		if absf(joy_y) >= 0.1:
@@ -152,6 +160,14 @@ func _process(delta: float) -> void:
 		var joy_y := _right_joystick.y
 		if absf(joy_y) >= 0.1:
 			_right_grip_scale = clampf(_right_grip_scale * (1.0 + joy_y * GRIP_SCALE_SPEED * delta), GRIP_SCALE_MIN, GRIP_SCALE_MAX)
+	if _extrude_multi[CONTROLLER_ID_LEFT] and not _left_extruding.is_empty():
+		var joy_y := _left_joystick.y
+		if absf(joy_y) >= 0.1:
+			_extrude_scale[CONTROLLER_ID_LEFT] = clampf(_extrude_scale[CONTROLLER_ID_LEFT] * (1.0 + joy_y * GRIP_SCALE_SPEED * delta), GRIP_SCALE_MIN, GRIP_SCALE_MAX)
+	if _extrude_multi[CONTROLLER_ID_RIGHT] and not _right_extruding.is_empty():
+		var joy_y := _right_joystick.y
+		if absf(joy_y) >= 0.1:
+			_extrude_scale[CONTROLLER_ID_RIGHT] = clampf(_extrude_scale[CONTROLLER_ID_RIGHT] * (1.0 + joy_y * GRIP_SCALE_SPEED * delta), GRIP_SCALE_MIN, GRIP_SCALE_MAX)
 
 	# Grip-transform: rotate, scale, and translate grabbed points with controller
 	if _left_grip_translating:
@@ -391,47 +407,61 @@ func _begin_extrude_or_insert(controller_id: int, hover_set: Array[Dictionary]) 
 			midpoints.append(entry)
 
 	var new_points: Array[Dictionary] = []
+	var is_multi := false
 
 	if not endpoints.is_empty():
-		# Extrude all hovered endpoints
+		is_multi = endpoints.size() > 1
+
 		for entry in endpoints:
 			var sn := entry["spline"] as SplineNode
 			var idx: int = entry["index"]
+			var src_pos := sn.data.points[idx]
 			var src_size := sn.data.sizes[idx]
 			var src_weight := sn.data.weights[idx]
+			# Single: snap to controller. Multi: keep at source position.
+			var new_pos := ctrl_local_pos if not is_multi else src_pos
 			var new_idx: int
 			if idx == 0:
-				# Prepend: insert at index 0, new point starts at same position
-				sn.data.insert_point(0, ctrl_local_pos, src_size, src_weight)
+				sn.data.insert_point(0, new_pos, src_size, src_weight)
 				new_idx = 0
-				# Shift any existing hover/editing indices for this spline
 			else:
-				# Append: add at end
-				sn.data.add_point(ctrl_local_pos, src_size, src_weight)
+				sn.data.add_point(new_pos, src_size, src_weight)
 				new_idx = sn.data.point_count() - 1
 			sn.mark_dirty()
 			sn.set_point_editing(new_idx, true)
-			new_points.append({"spline": sn, "index": new_idx})
+			new_points.append({"spline": sn, "index": new_idx, "initial_pos": new_pos})
 	else:
 		# Insert mid-points: only lowest index per spline
+		is_multi = midpoints.size() > 1
 		var per_spline: Dictionary = {}  # SplineNode → lowest index entry
 		for entry in midpoints:
 			var sn := entry["spline"] as SplineNode
 			if not per_spline.has(sn) or entry["index"] < per_spline[sn]["index"]:
 				per_spline[sn] = entry
 
+		is_multi = per_spline.size() > 1
+
 		for sn: SplineNode in per_spline:
 			var entry: Dictionary = per_spline[sn]
 			var idx: int = entry["index"]
 			var next_idx := idx + 1
-			# Average size and weight between current and next point
 			var avg_size := (sn.data.sizes[idx] + sn.data.sizes[next_idx]) * 0.5
 			var avg_weight := (sn.data.weights[idx] + sn.data.weights[next_idx]) * 0.5
-			# Insert after current point
-			sn.data.insert_point(next_idx, ctrl_local_pos, avg_size, avg_weight)
+			# Single: snap to controller. Multi: place at midpoint between neighbors.
+			var new_pos := ctrl_local_pos if not is_multi else (sn.data.points[idx] + sn.data.points[next_idx]) * 0.5
+			sn.data.insert_point(next_idx, new_pos, avg_size, avg_weight)
 			sn.mark_dirty()
 			sn.set_point_editing(next_idx, true)
-			new_points.append({"spline": sn, "index": next_idx})
+			new_points.append({"spline": sn, "index": next_idx, "initial_pos": new_pos})
+
+	# Store extrude state
+	_extrude_multi[controller_id] = is_multi
+	_extrude_scale[controller_id] = 1.0
+	if is_multi:
+		# Snapshot controller transform for delta-transform (like grip)
+		_extrude_initial_pos[controller_id] = ctrl_local_pos
+		var ps_inv_basis := project_space.global_transform.basis.inverse()
+		_extrude_initial_basis[controller_id] = ps_inv_basis * controller.global_transform.basis
 
 	if controller_id == CONTROLLER_ID_LEFT:
 		_left_extruding = new_points
@@ -444,11 +474,31 @@ func _update_extrude(controller_id: int) -> void:
 	var extruding := _left_extruding if controller_id == CONTROLLER_ID_LEFT else _right_extruding
 	var ctrl_local_pos := project_space.global_transform.affine_inverse() * controller.global_position
 
-	for entry in extruding:
-		var sn := entry["spline"] as SplineNode
-		var idx: int = entry["index"]
-		sn.data.points[idx] = ctrl_local_pos
-		sn.mark_dirty()
+	if not _extrude_multi[controller_id]:
+		# Single point: snap directly to controller position
+		for entry in extruding:
+			var sn := entry["spline"] as SplineNode
+			var idx: int = entry["index"]
+			sn.data.points[idx] = ctrl_local_pos
+			sn.mark_dirty()
+	else:
+		# Multi point: delta-transform (translation + rotation + scale)
+		var initial_pos := _extrude_initial_pos[controller_id]
+		var initial_basis := _extrude_initial_basis[controller_id]
+		var ext_scale := _extrude_scale[controller_id]
+		var translate_delta := ctrl_local_pos - initial_pos
+
+		var ps_inv_basis := project_space.global_transform.basis.inverse()
+		var current_local_basis := ps_inv_basis * controller.global_transform.basis
+		var rotation_delta := current_local_basis * initial_basis.inverse()
+
+		for entry in extruding:
+			var sn := entry["spline"] as SplineNode
+			var idx: int = entry["index"]
+			var original: Vector3 = entry["initial_pos"]
+			var offset := original - initial_pos
+			sn.data.points[idx] = initial_pos + rotation_delta * offset * ext_scale + translate_delta
+			sn.mark_dirty()
 
 
 # --- Delete points (A/X button) ---

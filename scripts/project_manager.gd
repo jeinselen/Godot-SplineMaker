@@ -224,6 +224,11 @@ func autosave_immediate() -> void:
 	_commit_autosave()
 
 
+func _cancel_pending_autosave() -> void:
+	_autosave_timer.stop()
+	_autosave_pending = false
+
+
 func _on_autosave_timer() -> void:
 	if _autosave_pending:
 		_autosave_pending = false
@@ -267,6 +272,11 @@ func can_redo() -> bool:
 func undo() -> void:
 	if not can_undo():
 		return
+	# Flush any pending edits so they become the redo target
+	if _autosave_pending:
+		_autosave_timer.stop()
+		_autosave_pending = false
+		_commit_autosave()
 	_undo_index -= 1
 	_load_save_file(_undo_stack[_undo_index])
 
@@ -274,6 +284,8 @@ func undo() -> void:
 func redo() -> void:
 	if not can_redo():
 		return
+	# Cancel (not flush) — redo steps forward through existing history
+	_cancel_pending_autosave()
 	_undo_index += 1
 	_load_save_file(_undo_stack[_undo_index])
 
