@@ -67,6 +67,9 @@ var _right_grip_scale: float = 1.0
 # Warning popup state
 var _short_draw_warned: bool = false
 
+# Track whether joystick edits occurred (for autosave on hover change)
+var _joystick_edited: bool = false
+
 const GRIP_SCALE_SPEED := 1.5
 const GRIP_SCALE_MIN := 0.05
 const GRIP_SCALE_MAX := 20.0
@@ -198,7 +201,20 @@ func _update_hover(controller_id: int, controller: XRController3D, action_area: 
 		if not _hover_set_contains(prev_hover_set, entry):
 			(entry["spline"] as SplineNode).set_point_hovered(entry["index"], true, controller_id)
 
+	# Detect if the hover set actually changed
+	var hover_changed := prev_hover_set.size() != new_hover_set.size()
+	if not hover_changed:
+		for entry in new_hover_set:
+			if not _hover_set_contains(prev_hover_set, entry):
+				hover_changed = true
+				break
+
 	_set_hover_set(controller_id, new_hover_set)
+
+	# If joystick edits were made and the hover set changed, trigger autosave
+	if hover_changed and _joystick_edited:
+		_joystick_edited = false
+		project_manager.autosave()
 
 	action_area.resize_locked = not new_hover_set.is_empty()
 	action_area.set_highlight(not new_hover_set.is_empty())
@@ -471,7 +487,8 @@ func _on_delete_pressed(controller_id: int) -> void:
 
 # --- Joystick size/weight editing ---
 
-const JOYSTICK_EDIT_SPEED := 0.5
+const SIZE_EDIT_SPEED := 0.15
+const WEIGHT_EDIT_SPEED := 2.0
 
 func _update_joystick_edit(controller_id: int, delta: float) -> void:
 	var joy_y := _left_joystick.y if controller_id == CONTROLLER_ID_LEFT else _right_joystick.y
@@ -482,8 +499,15 @@ func _update_joystick_edit(controller_id: int, delta: float) -> void:
 	if hover_set.is_empty():
 		return
 
-	var change := joy_y * JOYSTICK_EDIT_SPEED * delta
+	# Normalize to 0–1 after deadzone, preserve sign, then square for fine control at low deflection
+	var sign_y := signf(joy_y)
+	var normalized := clampf((absf(joy_y) - 0.1) / 0.9, 0.0, 1.0)
+	var curved := sign_y * normalized * normalized
 
+	var speed := SIZE_EDIT_SPEED if current_mode == Mode.SIZE else WEIGHT_EDIT_SPEED
+	var change := curved * speed * delta
+
+	_joystick_edited = true
 	for entry in hover_set:
 		var sn := entry["spline"] as SplineNode
 		var idx: int = entry["index"]
@@ -558,7 +582,14 @@ func _on_button_pressed(button_name: String, controller_id: int) -> void:
 	elif button_name == "grip_click":
 		_on_grip_pressed(controller_id)
 	elif button_name == "ax_button":
-		_on_delete_pressed(controller_id)
+		var hover_set := _get_hover_set(controller_id)
+		if not hover_set.is_empty() and left_action_area.visible:
+			_on_delete_pressed(controller_id)
+		elif not is_input_active():
+			project_manager.undo()
+	elif button_name == "by_button":
+		if not is_input_active():
+			project_manager.redo()
 
 
 func _on_button_released(button_name: String, controller_id: int) -> void:

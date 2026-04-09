@@ -30,10 +30,20 @@ var _undo_stack: Array[int] = []  # ordered list of save file numbers present on
 var _undo_index: int = -1         # index into _undo_stack of the currently loaded state
 var _is_restoring: bool = false   # suppresses autosave during undo/redo restore
 
+# Debounced autosave: waits for a cooldown period before actually saving
+var _autosave_timer: Timer
+var _autosave_pending: bool = false
+@export var autosave_delay: float = 2.0
+
 
 func _ready() -> void:
 	export_failed.connect(_on_export_failed)
 	export_succeeded.connect(_on_export_succeeded)
+
+	_autosave_timer = Timer.new()
+	_autosave_timer.one_shot = true
+	_autosave_timer.timeout.connect(_on_autosave_timer)
+	add_child(_autosave_timer)
 
 
 # --- Project open / create ---
@@ -190,9 +200,37 @@ func _read_meta() -> void:
 # --- Auto-save ---
 
 ## Called by interaction.gd after every committed edit.
+## Request an autosave. If the cooldown timer is running, the save is deferred
+## until it expires. Multiple requests during the cooldown period are collapsed
+## into a single save.
 func autosave() -> void:
 	if _is_restoring:
 		return
+	if autosave_delay <= 0.0:
+		_commit_autosave()
+		return
+	# Start or restart the cooldown timer
+	_autosave_pending = true
+	_autosave_timer.start(autosave_delay)
+
+
+## Force an immediate autosave, bypassing the cooldown timer.
+## Used when closing a project or quitting.
+func autosave_immediate() -> void:
+	if _is_restoring:
+		return
+	_autosave_timer.stop()
+	_autosave_pending = false
+	_commit_autosave()
+
+
+func _on_autosave_timer() -> void:
+	if _autosave_pending:
+		_autosave_pending = false
+		_commit_autosave()
+
+
+func _commit_autosave() -> void:
 	_truncate_redo_history()
 	_save_counter += 1
 	_write_save_file(_save_counter)
@@ -368,6 +406,9 @@ func _get_export_dir() -> String:
 ## clears project space, and emits project_closed.
 ## Returns true on successful export, false on failure.
 func close_project() -> bool:
+	# Flush any pending debounced autosave before closing
+	if _autosave_pending:
+		autosave_immediate()
 	var success := export_json()
 	# Clear hover state before freeing nodes
 	interaction.clear_hover_sets()

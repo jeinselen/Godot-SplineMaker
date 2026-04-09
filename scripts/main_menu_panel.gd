@@ -16,6 +16,7 @@ var _settings_view: VBoxContainer
 # Settings controls
 var _export_path_edit: LineEdit
 var _undo_steps_spin: SpinBox
+var _autosave_delay_spin: SpinBox
 var _panel_side_btn: Button
 var _mesh_res_spin: SpinBox
 
@@ -186,6 +187,25 @@ func _build_settings_view() -> void:
 	_undo_steps_spin.value = _app_manager.settings.max_undo_steps
 	_undo_steps_spin.add_theme_font_size_override("font_size", 18)
 	undo_row.add_child(_undo_steps_spin)
+
+	# Autosave Delay
+	var delay_row := HBoxContainer.new()
+	delay_row.add_theme_constant_override("separation", 6)
+	_settings_view.add_child(delay_row)
+	var delay_label := Label.new()
+	delay_label.text = "Autosave Delay"
+	delay_label.add_theme_font_size_override("font_size", 18)
+	delay_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+	delay_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	delay_row.add_child(delay_label)
+	_autosave_delay_spin = SpinBox.new()
+	_autosave_delay_spin.min_value = 0.0
+	_autosave_delay_spin.max_value = 10.0
+	_autosave_delay_spin.step = 0.5
+	_autosave_delay_spin.value = _app_manager.settings.autosave_delay
+	_autosave_delay_spin.suffix = "s"
+	_autosave_delay_spin.add_theme_font_size_override("font_size", 18)
+	delay_row.add_child(_autosave_delay_spin)
 
 	# Panel Side
 	var side_row := HBoxContainer.new()
@@ -381,6 +401,7 @@ func _on_settings_back_pressed() -> void:
 	# Save settings
 	_app_manager.settings.export_directory = _export_path_edit.text
 	_app_manager.settings.max_undo_steps = int(_undo_steps_spin.value)
+	_app_manager.settings.autosave_delay = _autosave_delay_spin.value
 	_app_manager.settings.panel_side = "left" if _panel_side_btn.text == "Left" else "right"
 	_app_manager.settings.preview_mesh_resolution = int(_mesh_res_spin.value)
 	_app_manager.apply_settings()

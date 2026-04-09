@@ -21,6 +21,7 @@ func _ready() -> void:
 	settings.load_from_file()
 	# Apply settings to project manager
 	project_manager.max_undo_steps = settings.max_undo_steps
+	project_manager.autosave_delay = settings.autosave_delay
 	project_manager.export_directory = settings.export_directory
 
 	# Hide project space and action areas until a project is opened
@@ -143,4 +144,5 @@ func is_any_panel_grabbed() -> bool:
 func apply_settings() -> void:
 	settings.save_to_file()
 	project_manager.max_undo_steps = settings.max_undo_steps
+	project_manager.autosave_delay = settings.autosave_delay
 	project_manager.export_directory = settings.export_directory
