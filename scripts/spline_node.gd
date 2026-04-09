@@ -6,6 +6,7 @@ const CUBE_HOVER_SCALE := 1.5
 const COLOR_ACTIVE := Color(0.3, 0.8, 1.0)
 const COLOR_NEUTRAL := Color(0.5, 0.5, 0.5)
 const COLOR_HOVER := Color(1.0, 0.9, 0.3)
+const XRAY_ALPHA := 0.2
 
 var data: SplineData
 var mesh_edge_count: int = 8
@@ -53,10 +54,12 @@ func _ready() -> void:
 	_cp_mat_normal = StandardMaterial3D.new()
 	_cp_mat_normal.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_cp_mat_normal.albedo_color = COLOR_NEUTRAL
+	_cp_mat_normal.next_pass = _make_xray_material(COLOR_NEUTRAL)
 
 	_cp_mat_hover = StandardMaterial3D.new()
 	_cp_mat_hover.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_cp_mat_hover.albedo_color = COLOR_HOVER
+	_cp_mat_hover.next_pass = _make_xray_material(COLOR_HOVER)
 
 	# Line material
 	_cp_line_mat = StandardMaterial3D.new()
@@ -64,6 +67,7 @@ func _ready() -> void:
 	_cp_line_mat.albedo_color = COLOR_NEUTRAL
 	_cp_line_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_cp_line_mat.albedo_color.a = 0.5
+	_cp_line_mat.next_pass = _make_xray_material(COLOR_NEUTRAL, 0.15)
 
 	# Line mesh instance
 	_cp_line_mesh_instance = MeshInstance3D.new()
@@ -190,6 +194,7 @@ func _rebuild_lines() -> void:
 	var im := ImmediateMesh.new()
 	var line_color := COLOR_ACTIVE if is_selected else COLOR_NEUTRAL
 	_cp_line_mat.albedo_color = Color(line_color.r, line_color.g, line_color.b, 0.5)
+	(_cp_line_mat.next_pass as StandardMaterial3D).albedo_color = Color(line_color.r, line_color.g, line_color.b, 0.15)
 
 	im.surface_begin(Mesh.PRIMITIVE_LINES, _cp_line_mat)
 	for i in n - 1:
@@ -226,10 +231,21 @@ func _update_point_visual(index: int) -> void:
 
 func _update_control_point_colors() -> void:
 	# Update the normal material color based on active state
-	_cp_mat_normal.albedo_color = COLOR_ACTIVE if is_selected else COLOR_NEUTRAL
+	var base_color := COLOR_ACTIVE if is_selected else COLOR_NEUTRAL
+	_cp_mat_normal.albedo_color = base_color
+	(_cp_mat_normal.next_pass as StandardMaterial3D).albedo_color = Color(base_color.r, base_color.g, base_color.b, XRAY_ALPHA)
 	# Rebuild lines to update their color
 	if data and data.point_count() >= 2:
 		_rebuild_lines()
 	# Re-apply visuals on all points
 	for i in _cp_meshes.size():
 		_update_point_visual(i)
+
+
+static func _make_xray_material(color: Color, alpha: float = XRAY_ALPHA) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.no_depth_test = true
+	mat.albedo_color = Color(color.r, color.g, color.b, alpha)
+	return mat
