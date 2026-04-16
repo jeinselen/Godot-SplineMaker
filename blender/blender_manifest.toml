@@ -1,17 +1,21 @@
 schema_version = "1.0.0"
 
-id = "spline_maker_io"
-version = "1.0.0"
+id = "Spline_Maker_IO"
 name = "Spline Maker I/O"
+version = "0.1.0"
 tagline = "Import and export SplineMaker JSON projects as Blender NURBS curves"
 maintainer = "OpenAI Codex"
+website = "https://github.com/jeinselen/Godot-SplineMaker"
 type = "add-on"
+
+# https://docs.blender.org/manual/en/dev/advanced/extensions/tags.html
+tags = ["Import-Export", "Mesh", "Object"]
 
 blender_version_min = "5.1.0"
 
-license = [
-  "SPDX:GPL-3.0-or-later",
-]
+# License conforming to https://spdx.org/licenses/ (use "SPDX: prefix)
+# https://docs.blender.org/manual/en/dev/advanced/extensions/licenses.html
+license = ["SPDX:GPL-3.0-or-later"]
 
 [permissions]
 files = "Import and export SplineMaker project files"
