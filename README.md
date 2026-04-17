@@ -1,5 +1,7 @@
 # SplineMaker
 
+![icon-banner](https://github.com/jeinselen/Godot-SplineMaker/blob/main/icon-banner.jpg)
+
 SplineMaker is an experimental passthrough XR spline sketching tool for Meta Quest 3, built with Godot 4.6, OpenXR, and the mobile Vulkan renderer. It lets you draw and edit spline-based forms in-headset, then round-trip project data into Blender with the included Blender extension.
 
 The current codebase exports clean project `.json` files on project close. Blender import/export is handled by the extension in [`blender/`](blender/).
