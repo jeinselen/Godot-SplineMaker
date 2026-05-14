@@ -156,6 +156,13 @@ func dismiss_keyboard() -> void:
 	_active_keyboard = null
 
 
+## True when a virtual keyboard is currently open. Used by interaction.gd to
+## suppress drawing/extrude/grip/joystick actions so trigger taps go to the
+## keyboard only.
+func is_keyboard_active() -> bool:
+	return _active_keyboard != null and is_instance_valid(_active_keyboard)
+
+
 ## Reposition the active panel in front of the camera.
 func reset_panel_position() -> void:
 	if active_panel and is_instance_valid(active_panel):

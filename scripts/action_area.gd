@@ -12,9 +12,18 @@ const RESIZE_SPEED := 0.1
 var radius: float = SIZE_DEFAULT
 var resize_locked: bool = false
 
+## Snap step applied to the radius (0 = no snap). Set by interaction.gd from
+## the size-snap project setting.
+var snap_step: float = 0.0
+
 var _mesh_instance: MeshInstance3D
 var _sphere_mesh: SphereMesh
 var _material: StandardMaterial3D
+
+# Unsnapped running radius; tracks continuous joystick input so snapping
+# doesn't lock the value at one increment.
+var _raw_radius: float = SIZE_DEFAULT
+var _resizing: bool = false
 
 
 func _ready() -> void:
@@ -37,12 +46,24 @@ func _ready() -> void:
 
 func update_size(joystick_y: float, delta: float) -> void:
 	if resize_locked:
+		_resizing = false
 		return
 	if absf(joystick_y) < 0.1:
+		_resizing = false
 		return
 
-	radius += joystick_y * RESIZE_SPEED * delta
-	radius = clampf(radius, SIZE_MIN, SIZE_MAX)
+	# Seed the unsnapped accumulator on the first frame of a new edit session.
+	if not _resizing:
+		_raw_radius = radius
+		_resizing = true
+
+	_raw_radius = clampf(_raw_radius + joystick_y * RESIZE_SPEED * delta, SIZE_MIN, SIZE_MAX)
+
+	var new_radius := _raw_radius
+	if snap_step > 0.0:
+		new_radius = clampf(round(_raw_radius / snap_step) * snap_step, SIZE_MIN, SIZE_MAX)
+
+	radius = new_radius
 	_apply_radius()
 
 

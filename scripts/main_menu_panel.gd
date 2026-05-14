@@ -584,15 +584,20 @@ func _on_export_path_focus_entered() -> void:
 	_app_manager.request_keyboard(_export_path_edit, "qwerty", self)
 
 
-## Wire a SpinBox's internal LineEdit so focusing it spawns the numpad.
+## Wire a SpinBox's internal LineEdit so a direct click on the text area spawns
+## the numpad. Using gui_input rather than focus_entered means the up/down
+## arrow buttons (which focus the LineEdit as a side effect) don't trigger it.
 func _wire_spinbox_keyboard(spin: SpinBox) -> void:
 	var le := spin.get_line_edit()
-	le.focus_entered.connect(_on_spin_focus_entered.bind(spin))
+	le.gui_input.connect(_on_spin_le_gui_input.bind(spin))
 	le.focus_exited.connect(_on_input_focus_exited)
 
 
-func _on_spin_focus_entered(spin: SpinBox) -> void:
-	_app_manager.request_keyboard(spin, "numpad", self)
+func _on_spin_le_gui_input(event: InputEvent, spin: SpinBox) -> void:
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			_app_manager.request_keyboard(spin, "numpad", self)
 
 
 ## Dismiss the keyboard one frame later if no other input grabbed focus

@@ -12,7 +12,7 @@ const META_FILE := "meta.json"
 const SAVE_PREFIX := "save_"
 const SAVE_EXT := ".json"
 const EXPORT_FILE := "splines.json"
-const JSON_VERSION := 1
+const JSON_VERSION := 2
 
 @export var max_undo_steps: int = 32
 ## Directory where exported JSON files are written on project close.
@@ -79,6 +79,9 @@ func create_new_project() -> String:
 	_save_counter = 0
 	_undo_stack = []
 	_undo_index = -1
+	# Reset snap state so a fresh project starts at documented defaults rather
+	# than inheriting the previous project's toggles.
+	interaction.restore_snap_settings(false, false, false, 0.1, 0.1, 1.0)
 	_write_meta()
 	autosave()  # write initial empty-state save so undo can return to blank canvas
 	project_opened.emit()
@@ -369,7 +372,15 @@ func _serialize_state() -> Dictionary:
 		"action_area_sizes": {
 			"left": interaction.left_action_area.radius,
 			"right": interaction.right_action_area.radius,
-		}
+		},
+		"snapping": {
+			"position_enabled": interaction.snap_position_enabled,
+			"size_enabled":     interaction.snap_size_enabled,
+			"weight_enabled":   interaction.snap_weight_enabled,
+			"position_step":    interaction.snap_position_step,
+			"size_step":        interaction.snap_size_step,
+			"weight_step":      interaction.snap_weight_step,
+		},
 	}
 
 
@@ -420,6 +431,17 @@ func _restore_state(state: Dictionary) -> void:
 	interaction.restore_action_area_sizes(
 		float(aa.get("left", ActionArea.SIZE_DEFAULT)),
 		float(aa.get("right", ActionArea.SIZE_DEFAULT))
+	)
+
+	# Restore snap state (v1 files have no "snapping" key — defaults to all off)
+	var snap: Dictionary = state.get("snapping", {})
+	interaction.restore_snap_settings(
+		bool(snap.get("position_enabled", false)),
+		bool(snap.get("size_enabled", false)),
+		bool(snap.get("weight_enabled", false)),
+		float(snap.get("position_step", 0.1)),
+		float(snap.get("size_step", 0.1)),
+		float(snap.get("weight_step", 1.0)),
 	)
 
 	_is_restoring = false

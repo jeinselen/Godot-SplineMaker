@@ -18,6 +18,10 @@ var mesh_edge_count: int = 8
 ## Samples per NURBS segment for preview mesh.
 var spline_resolution: int = 8
 
+## Position snap step. 0.0 means no snapping. Set by interaction.gd before
+## calling begin(); applied at every point commit.
+var snap_position_step: float = 0.0
+
 ## The spline node being built (lives under ProjectSpace).
 var spline_node: SplineNode = null
 
@@ -49,7 +53,7 @@ func begin(start_pos: Vector3, start_size: float, parent: Node3D) -> void:
 
 	data = SplineData.new()
 	data.order_u = 4
-	data.add_point(start_pos, start_size)
+	data.add_point(_snap(start_pos), start_size)
 
 	spline_node = SplineNode.new()
 	spline_node.name = "DrawPreview"
@@ -107,7 +111,7 @@ func update(raw_pos: Vector3, raw_size: float) -> void:
 
 
 func _commit_point(pos: Vector3, size: float) -> void:
-	data.add_point(pos, size)
+	data.add_point(_snap(pos), size)
 	data.order_u = mini(4, data.point_count())
 	_cumulative_angle = 0.0
 	_cumulative_dist = 0.0
@@ -115,6 +119,18 @@ func _commit_point(pos: Vector3, size: float) -> void:
 	# Rebuild the main NURBS mesh only on commit
 	if data.point_count() >= 2 and spline_node:
 		spline_node.set_data(data)
+
+
+## Snap a position to the configured grid (or pass-through if disabled).
+func _snap(p: Vector3) -> Vector3:
+	if snap_position_step <= 0.0:
+		return p
+	var s := snap_position_step
+	return Vector3(
+		round(p.x / s) * s,
+		round(p.y / s) * s,
+		round(p.z / s) * s,
+	)
 
 
 ## Update the lightweight tip tube from the last committed point to the cursor.
@@ -155,9 +171,12 @@ func finalize() -> float:
 	if n >= 1:
 		var last := data.points[n - 1]
 		if _smoothed_pos.distance_to(last) > 0.003:
-			data.add_point(_smoothed_pos, _smoothed_size)
+			data.add_point(_snap(_smoothed_pos), _smoothed_size)
 
 	data.order_u = mini(4, data.point_count())
+
+	# Collapse contiguous duplicates introduced by snapping.
+	data.merge_adjacent_duplicates()
 
 	if spline_node and data.point_count() >= 2:
 		spline_node.set_data(data)

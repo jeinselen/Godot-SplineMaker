@@ -41,6 +41,41 @@ func effective_order() -> int:
 	return mini(order_u, points.size())
 
 
+## Merges adjacent points whose positions match within epsilon. The surviving
+## point's size and weight are the averages of the two merged points. For
+## cyclic splines, also merges across the seam (last -> first). Refuses any
+## individual merge that would leave fewer than 2 points. Returns true if at
+## least one merge occurred.
+func merge_adjacent_duplicates(epsilon: float = 1e-5) -> bool:
+	if point_count() < 3:
+		# A 2-point spline can't be merged (would leave 1 point), and 0/1
+		# point splines have nothing to merge.
+		return false
+
+	var merged_any := false
+	var i := 0
+	while i < point_count() - 1 and point_count() > 2:
+		if points[i].distance_to(points[i + 1]) <= epsilon:
+			sizes[i] = (sizes[i] + sizes[i + 1]) * 0.5
+			weights[i] = (weights[i] + weights[i + 1]) * 0.5
+			remove_point(i + 1)
+			merged_any = true
+			# Don't increment i — re-check the same index against the new neighbor.
+		else:
+			i += 1
+
+	# Cyclic seam: last point against first.
+	if cyclic and point_count() > 2:
+		var last := point_count() - 1
+		if points[0].distance_to(points[last]) <= epsilon:
+			sizes[0] = (sizes[0] + sizes[last]) * 0.5
+			weights[0] = (weights[0] + weights[last]) * 0.5
+			remove_point(last)
+			merged_any = true
+
+	return merged_any
+
+
 # --- PackedArray helpers (no built-in insert/remove) ---
 
 static func _insert_vec3(arr: PackedVector3Array, index: int, value: Vector3) -> PackedVector3Array:

@@ -24,6 +24,12 @@ var _empty_label: Label
 var _props_container: VBoxContainer
 var _order_spin: SpinBox
 var _cyclic_check: CheckButton
+var _snap_pos_check: CheckButton
+var _snap_size_check: CheckButton
+var _snap_weight_check: CheckButton
+var _snap_pos_step: SpinBox
+var _snap_size_step: SpinBox
+var _snap_weight_step: SpinBox
 
 # Track spline list items for efficient updates
 var _spline_rows: Array[Dictionary] = []  # [{node: HBoxContainer, spline: SplineNode}]
@@ -113,6 +119,23 @@ func _build_ui() -> void:
 		mode_row.add_child(btn)
 		_mode_buttons.append(btn)
 
+	# --- Size / Weight snap row: two cells aligned under the mode buttons ---
+	var sw_snap_row := HBoxContainer.new()
+	sw_snap_row.add_theme_constant_override("separation", 2)
+	vbox.add_child(sw_snap_row)
+
+	var size_pair := _make_snap_pair(sw_snap_row,
+		_interaction.snap_size_enabled, _interaction.snap_size_step,
+		_on_snap_size_toggled, _on_snap_size_step_changed, true)
+	_snap_size_check = size_pair[0]
+	_snap_size_step = size_pair[1]
+
+	var weight_pair := _make_snap_pair(sw_snap_row,
+		_interaction.snap_weight_enabled, _interaction.snap_weight_step,
+		_on_snap_weight_toggled, _on_snap_weight_step_changed, true)
+	_snap_weight_check = weight_pair[0]
+	_snap_weight_step = weight_pair[1]
+
 	# --- Curve Accuracy slider ---
 	_accuracy_container = HBoxContainer.new()
 	_accuracy_container.add_theme_constant_override("separation", 6)
@@ -132,6 +155,24 @@ func _build_ui() -> void:
 	_accuracy_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_accuracy_slider.value_changed.connect(_on_accuracy_changed)
 	_accuracy_container.add_child(_accuracy_slider)
+
+	# --- Position snap row ---
+	var pos_snap_row := HBoxContainer.new()
+	pos_snap_row.add_theme_constant_override("separation", 6)
+	vbox.add_child(pos_snap_row)
+
+	var pos_label := Label.new()
+	pos_label.text = "Position"
+	pos_label.add_theme_font_size_override("font_size", 18)
+	pos_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+	pos_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pos_snap_row.add_child(pos_label)
+
+	var pos_pair := _make_snap_pair(pos_snap_row,
+		_interaction.snap_position_enabled, _interaction.snap_position_step,
+		_on_snap_pos_toggled, _on_snap_pos_step_changed, false)
+	_snap_pos_check = pos_pair[0]
+	_snap_pos_step = pos_pair[1]
 
 	# --- Separator ---
 	vbox.add_child(HSeparator.new())
@@ -185,7 +226,7 @@ func _build_ui() -> void:
 	_order_spin.add_theme_font_size_override("font_size", 18)
 	_order_spin.value_changed.connect(_on_order_changed)
 	var order_le := _order_spin.get_line_edit()
-	order_le.focus_entered.connect(_on_order_focus_entered)
+	order_le.gui_input.connect(_on_order_le_gui_input)
 	order_le.focus_exited.connect(_on_order_focus_exited)
 	order_row.add_child(_order_spin)
 
@@ -210,6 +251,111 @@ func _connect_signals() -> void:
 	_project_space.splines_changed.connect(_refresh_spline_list)
 	_interaction.spline_selected.connect(_on_spline_selected)
 	_interaction.mode_changed.connect(_on_mode_changed)
+	_interaction.snap_settings_changed.connect(_refresh_snap_checks)
+
+
+# --- Snap toggles ---
+
+## Build a `[snap label][CheckButton][SpinBox]` cell. All three snap inputs
+## share the same 0.01–1.0 range; values outside that range are clamped by
+## the SpinBox on commit. Returns `[check, spin]` so the caller can store refs.
+func _make_snap_pair(parent: Control,
+		initial_on: bool, initial_step: float,
+		toggle_handler: Callable, step_handler: Callable,
+		expand: bool) -> Array:
+	var box := HBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	if expand:
+		box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	parent.add_child(box)
+
+	var lbl := Label.new()
+	lbl.text = "snap"
+	lbl.add_theme_font_size_override("font_size", 16)
+	lbl.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+	box.add_child(lbl)
+
+	var check := CheckButton.new()
+	check.button_pressed = initial_on
+	check.toggled.connect(toggle_handler)
+	box.add_child(check)
+
+	var spin := SpinBox.new()
+	spin.min_value = 0.01
+	spin.max_value = 1.0
+	spin.step = 0.01
+	spin.value = initial_step
+	spin.custom_minimum_size = Vector2(72, 0)
+	if expand:
+		spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spin.add_theme_font_size_override("font_size", 16)
+	spin.value_changed.connect(step_handler)
+	# Reuse the numpad keyboard. gui_input filter ensures clicking the up/down
+	# arrows doesn't pop the keyboard — only a direct click on the text area.
+	var le := spin.get_line_edit()
+	le.gui_input.connect(_on_snap_step_le_gui_input.bind(spin))
+	le.focus_exited.connect(_on_snap_step_focus_exited.bind(spin))
+	box.add_child(spin)
+
+	return [check, spin]
+
+
+func _on_snap_pos_toggled(on: bool) -> void:
+	_interaction.set_snap_position_enabled(on)
+
+
+func _on_snap_size_toggled(on: bool) -> void:
+	_interaction.set_snap_size_enabled(on)
+
+
+func _on_snap_weight_toggled(on: bool) -> void:
+	_interaction.set_snap_weight_enabled(on)
+
+
+func _on_snap_pos_step_changed(value: float) -> void:
+	_interaction.set_snap_position_step(value)
+
+
+func _on_snap_size_step_changed(value: float) -> void:
+	_interaction.set_snap_size_step(value)
+
+
+func _on_snap_weight_step_changed(value: float) -> void:
+	_interaction.set_snap_weight_step(value)
+
+
+func _on_snap_step_le_gui_input(event: InputEvent, spin: SpinBox) -> void:
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			_app_manager.request_keyboard(spin, "numpad", self)
+
+
+func _on_snap_step_focus_exited(spin: SpinBox) -> void:
+	await get_tree().process_frame
+	var kb: XRKeyboard = _app_manager._active_keyboard
+	if not kb or not is_instance_valid(kb):
+		return
+	if kb.target_control == spin and not spin.get_line_edit().has_focus():
+		_app_manager.dismiss_keyboard()
+
+
+## Re-sync the snap UI from interaction state. Called when a project is loaded
+## or undo/redo restores a different snap configuration. Uses *_no_signal
+## variants so writes don't re-trigger the setters.
+func _refresh_snap_checks() -> void:
+	if _snap_pos_check:
+		_snap_pos_check.set_pressed_no_signal(_interaction.snap_position_enabled)
+	if _snap_size_check:
+		_snap_size_check.set_pressed_no_signal(_interaction.snap_size_enabled)
+	if _snap_weight_check:
+		_snap_weight_check.set_pressed_no_signal(_interaction.snap_weight_enabled)
+	if _snap_pos_step:
+		_snap_pos_step.set_value_no_signal(_interaction.snap_position_step)
+	if _snap_size_step:
+		_snap_size_step.set_value_no_signal(_interaction.snap_size_step)
+	if _snap_weight_step:
+		_snap_weight_step.set_value_no_signal(_interaction.snap_weight_step)
 
 
 func _process(delta: float) -> void:
@@ -362,8 +508,11 @@ func _on_order_changed(value: float) -> void:
 
 
 
-func _on_order_focus_entered() -> void:
-	_app_manager.request_keyboard(_order_spin, "numpad", self)
+func _on_order_le_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			_app_manager.request_keyboard(_order_spin, "numpad", self)
 
 
 func _on_order_focus_exited() -> void:
