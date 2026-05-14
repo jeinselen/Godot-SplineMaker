@@ -56,10 +56,6 @@ var _grab_initial_panel_transform: Transform3D
 var _edge_overlap: Array[bool] = [false, false]
 var _was_edge_overlap: Array[bool] = [false, false]
 
-# Grip state from controllers (tracked locally for grab detection)
-var _left_grip_active: bool = false
-var _right_grip_active: bool = false
-
 # Mouse button state for proper press/release injection
 var _mouse_pressed: Array[bool] = [false, false]
 
@@ -67,6 +63,14 @@ var _mouse_pressed: Array[bool] = [false, false]
 # (no raycast, no click injection, no grab). Set externally by interaction.gd
 # when the controller has hovered control points.
 var _blocked: Array[bool] = [false, false]
+
+# Per-controller hovered BaseButton inside the SubViewport. Godot's built-in
+# hover state only tracks a single cursor; we mirror it per-controller and
+# force the theme's `hover` stylebox onto both controllers' targets so they
+# look identical (and match a single-controller hover).
+var _hovered_control: Array = [null, null]
+# Set of BaseButtons currently carrying our forced-hover override.
+var _highlighted: Dictionary = {}
 
 
 ## The Control root inside the SubViewport. Subclasses populate this.
@@ -148,6 +152,9 @@ func _process(_delta: float) -> void:
 	# Inject joystick scroll for pointing controllers
 	_update_scroll(0)
 	_update_scroll(1)
+
+	# Apply custom hover highlights for both controllers' pointed-at controls
+	_apply_hover_highlights()
 
 
 # --- Public API ---
@@ -318,18 +325,28 @@ func _update_raycast(controller_id: int, controller: XRController3D) -> void:
 
 	_set_pointing(controller_id, true)
 
-	# If the other controller is mid-press, don't push motion — moving the
-	# SubViewport's cursor away from the pressed button would cancel its click.
+	var vp_pos := Vector2(u * panel_size.x, v * panel_size.y)
 	var other_id := 1 - controller_id
+
 	if _mouse_pressed[other_id]:
+		# Don't push motion — would shift the SubViewport's cursor away from
+		# the pressed button and cancel its click. Hover for this controller
+		# is still tracked via a manual hit-test.
+		_hovered_control[controller_id] = _find_button_at(_content_root, vp_pos)
 		return
 
 	# Inject mouse motion event
-	var vp_pos := Vector2(u * panel_size.x, v * panel_size.y)
 	var motion := InputEventMouseMotion.new()
 	motion.position = vp_pos
 	motion.global_position = vp_pos
 	_viewport.push_input(motion)
+
+	# push_input dispatches synchronously, so the SubViewport's hover state
+	# already reflects this controller's UV. Capture it before the other
+	# controller's motion (if any) overwrites it. Limit to BaseButton so we
+	# don't modulate background Containers / Labels.
+	var hov := _viewport.gui_get_hovered_control()
+	_hovered_control[controller_id] = hov if hov is BaseButton else null
 
 
 func _set_pointing(controller_id: int, pointing: bool) -> void:
@@ -341,10 +358,51 @@ func _set_pointing(controller_id: int, pointing: bool) -> void:
 		var ctrl := _left_controller if controller_id == 0 else _right_controller
 		ctrl.trigger_haptic_pulse("haptic", 0.0, HAPTIC_TAP_AMPLITUDE, HAPTIC_TAP_DURATION, 0.0)
 
-	# If no longer pointing, release any held mouse button
-	if not pointing and _mouse_pressed[controller_id]:
-		_inject_mouse_button(controller_id, false)
-		_mouse_pressed[controller_id] = false
+	# If no longer pointing, release any held mouse button and clear hover.
+	if not pointing:
+		_hovered_control[controller_id] = null
+		if _mouse_pressed[controller_id]:
+			_inject_mouse_button(controller_id, false)
+			_mouse_pressed[controller_id] = false
+
+
+## Recursively find the deepest BaseButton whose rect contains pos. Used to
+## detect what a non-cursor-pushing controller is pointing at.
+func _find_button_at(node: Node, pos: Vector2) -> Control:
+	if node is Control and not (node as Control).visible:
+		return null
+	for child in node.get_children():
+		var found := _find_button_at(child, pos)
+		if found:
+			return found
+	if node is BaseButton:
+		var c := node as Control
+		if c.get_global_rect().has_point(pos):
+			return c
+	return null
+
+
+## Force the theme hover stylebox onto both controllers' targeted buttons so
+## they appear identical regardless of where Godot's single internal cursor is.
+func _apply_hover_highlights() -> void:
+	var current: Dictionary = {}
+	for id in 2:
+		var c = _hovered_control[id]
+		if c and is_instance_valid(c):
+			current[c] = true
+
+	for c in _highlighted:
+		if not current.has(c) and is_instance_valid(c):
+			(c as BaseButton).remove_theme_stylebox_override("normal")
+
+	for c in current:
+		if c is BaseButton:
+			var btn := c as BaseButton
+			var hover_box := btn.get_theme_stylebox("hover")
+			if hover_box:
+				btn.add_theme_stylebox_override("normal", hover_box)
+
+	_highlighted = current
 
 
 # --- Click injection ---
@@ -455,11 +513,6 @@ func _update_edge_overlap(controller_id: int, controller: XRController3D) -> voi
 func _on_controller_button_pressed(button_name: String, controller_id: int) -> void:
 	if button_name != "grip_click":
 		return
-	if controller_id == 0:
-		_left_grip_active = true
-	else:
-		_right_grip_active = true
-
 	if not grabbable or _grabbed:
 		return
 	if _blocked[controller_id]:
@@ -467,7 +520,8 @@ func _on_controller_button_pressed(button_name: String, controller_id: int) -> v
 	if not _edge_overlap[controller_id] and not _pointing[controller_id]:
 		return
 
-	# Begin grab
+	# Begin grab — single-controller; first grip wins, second is ignored
+	# until the first releases.
 	_grabbed = true
 	_grab_controller_id = controller_id
 	var ctrl := _left_controller if controller_id == 0 else _right_controller
@@ -478,11 +532,6 @@ func _on_controller_button_pressed(button_name: String, controller_id: int) -> v
 func _on_controller_button_released(button_name: String, controller_id: int) -> void:
 	if button_name != "grip_click":
 		return
-	if controller_id == 0:
-		_left_grip_active = false
-	else:
-		_right_grip_active = false
-
 	if _grabbed and _grab_controller_id == controller_id:
 		_grabbed = false
 		_grab_controller_id = -1

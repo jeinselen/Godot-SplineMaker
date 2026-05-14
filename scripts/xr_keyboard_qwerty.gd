@@ -11,6 +11,7 @@ const ROW_BOT := ["z", "x", "c", "v", "b", "n", "m"]
 const ROW_SYMS := ["-", "_", "."]
 
 var _shift: bool = false
+var _shift_btn: Button = null
 var _letter_buttons: Array[Button] = []
 
 
@@ -54,9 +55,9 @@ func _build_keys() -> void:
 	ctrl_row.add_theme_constant_override("separation", 4)
 	vbox.add_child(ctrl_row)
 
-	var shift_btn := _make_key("Shift", ctrl_row, true)
-	shift_btn.toggle_mode = true
-	shift_btn.toggled.connect(_on_shift_toggled)
+	_shift_btn = _make_key("Shift", ctrl_row, true)
+	_shift_btn.toggle_mode = true
+	_shift_btn.toggled.connect(_on_shift_toggled)
 
 	var space_btn := _make_key("Space", ctrl_row, true)
 	space_btn.size_flags_stretch_ratio = 3.0
@@ -87,6 +88,10 @@ func _add_letter_row(parent: Control, chars: Array, is_letter: bool) -> void:
 
 func _on_letter_pressed(btn: Button) -> void:
 	_insert(btn.text)
+	# Shift acts as a one-shot capitaliser: drop it after the first letter so
+	# the next keystroke is lowercase again.
+	if _shift and _shift_btn:
+		_shift_btn.button_pressed = false
 
 
 func _on_literal_pressed(ch: String) -> void:
