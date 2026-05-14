@@ -68,7 +68,7 @@ var _blocked: Array[bool] = [false, false]
 # hover state only tracks a single cursor; we mirror it per-controller and
 # force the theme's `hover` stylebox onto both controllers' targets so they
 # look identical (and match a single-controller hover).
-var _hovered_control: Array = [null, null]
+var _hovered_control: Array[Control] = [null, null]
 # Set of BaseButtons currently carrying our forced-hover override.
 var _highlighted: Dictionary = {}
 
@@ -387,7 +387,7 @@ func _find_button_at(node: Node, pos: Vector2) -> Control:
 func _apply_hover_highlights() -> void:
 	var current: Dictionary = {}
 	for id in 2:
-		var c = _hovered_control[id]
+		var c: Control = _hovered_control[id]
 		if c and is_instance_valid(c):
 			current[c] = true
 

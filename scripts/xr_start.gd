@@ -48,7 +48,8 @@ func _enable_passthrough() -> void:
 	if not world_environment.environment:
 		world_environment.environment = Environment.new()
 
-	var supported_modes: Array = xr_interface.get_supported_environment_blend_modes()
+	var supported_modes: Array[int]
+	supported_modes.assign(xr_interface.get_supported_environment_blend_modes())
 	print("Passthrough: Supported blend modes = ", supported_modes)
 	if XRInterface.XR_ENV_BLEND_MODE_ALPHA_BLEND in supported_modes:
 		xr_interface.environment_blend_mode = XRInterface.XR_ENV_BLEND_MODE_ALPHA_BLEND
@@ -89,7 +90,8 @@ func _on_openxr_session_begun() -> void:
 		print("OpenXR: Current refresh rate = ", current_rate)
 
 	var new_rate: float = current_rate
-	var available_rates: Array = xr_interface.get_available_display_refresh_rates()
+	var available_rates: Array[float]
+	available_rates.assign(xr_interface.get_available_display_refresh_rates())
 	if available_rates.is_empty():
 		print("OpenXR: Refresh rate extension not available.")
 	else:
@@ -125,12 +127,12 @@ func _on_openxr_focused_state() -> void:
 func _on_openxr_stopping() -> void:
 	print("OpenXR: Session stopping.")
 	# Export project JSON on app close (via app_manager if in a project)
-	var am = get_node_or_null("%AppManager")
+	var am: Node = get_node_or_null("%AppManager")
 	if am and am.state == am.AppState.IN_PROJECT:
 		am.close_project()
 	else:
-		var pm = get_node_or_null("%ProjectManager")
-		if pm and pm.has_method("close_project"):
+		var pm: Node = get_node_or_null("%ProjectManager")
+		if pm and pm.has_method("has_open_project") and pm.has_open_project():
 			pm.close_project()
 
 
@@ -140,10 +142,10 @@ func _on_openxr_pose_recentered() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
-		var am = get_node_or_null("%AppManager")
+		var am: Node = get_node_or_null("%AppManager")
 		if am and am.state == am.AppState.IN_PROJECT:
 			am.close_project()
 		else:
-			var pm = get_node_or_null("%ProjectManager")
-			if pm and pm.has_method("close_project"):
+			var pm: Node = get_node_or_null("%ProjectManager")
+			if pm and pm.has_method("has_open_project") and pm.has_open_project():
 				pm.close_project()

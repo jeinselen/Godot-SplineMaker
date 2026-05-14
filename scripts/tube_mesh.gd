@@ -207,24 +207,7 @@ static func _add_hemisphere_cap(
 	st.add_vertex(pole)
 
 	# Connect the equator ring (tube body boundary) to the first cap ring
-	# The equator ring is the first or last ring of the tube body
 	var equator_base: int
-	if is_start:
-		equator_base = 0  # first ring of tube body
-	else:
-		# last ring of tube body is at (point_count - 1) * edge_count
-		# but we receive vert_offset which accounts for body + previous cap
-		# The last body ring starts at vert_offset - edge_count...
-		# Actually, the caller must handle this. Let's use the ring indices directly.
-		# For the end cap, the equator is the last tube ring.
-		# We know the body has N rings, the last starts at (N-1)*edge_count.
-		# But we don't have N here. Instead, let's compute it from vert_offset.
-		# For start cap: vert_offset = body_vert_count, equator = ring 0 = index 0
-		# For end cap: vert_offset = body_vert_count + start_cap_verts
-		# equator = last ring = body_vert_count - edge_count
-		pass
-
-	# Determine equator ring vertex indices
 	if is_start:
 		equator_base = 0
 	else:

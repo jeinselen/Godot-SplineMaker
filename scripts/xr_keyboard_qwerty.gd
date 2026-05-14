@@ -4,10 +4,6 @@ extends XRKeyboard
 ## Full text-input keyboard: digits row, QWERTY letters with latched Shift, and
 ## filesystem-safe symbols (dash, underscore, period) always visible.
 
-const ROW_DIGITS := ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
-const ROW_TOP := ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"]
-const ROW_MID := ["a", "s", "d", "f", "g", "h", "j", "k", "l"]
-const ROW_BOT := ["z", "x", "c", "v", "b", "n", "m"]
 const ROW_SYMS := ["-", "_", "."]
 
 var _shift: bool = false

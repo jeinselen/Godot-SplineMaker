@@ -8,7 +8,7 @@ extends Node3D
 @onready var right_controller: XRController3D = %RightController
 @onready var project_space: Node3D = %ProjectSpace
 @onready var interaction: Node3D = get_parent().get_node("Interaction")
-@onready var app_manager = %AppManager
+@onready var app_manager: Node = %AppManager
 
 # Grip state
 var left_grip_active: bool = false
@@ -17,7 +17,6 @@ var right_grip_active: bool = false
 # Single-grip initial snapshots
 var _single_ctrl_initial: Transform3D
 var _single_project_initial: Transform3D
-var _single_controller: XRController3D
 
 # Dual-grip initial snapshots
 var _dual_left_pos_initial: Vector3
@@ -110,7 +109,6 @@ func _on_grip_released(controller: XRController3D) -> void:
 # --- Single-grip navigation (translate + rotate) ---
 
 func _begin_single_grip(controller: XRController3D) -> void:
-	_single_controller = controller
 	_single_ctrl_initial = controller.global_transform
 	_single_project_initial = project_space.global_transform
 
@@ -182,10 +180,8 @@ func _basis_from_two_points(left_pos: Vector3, right_pos: Vector3) -> Basis:
 
 # --- View reset ---
 
-const DEFAULT_PROJECT_OFFSET := Vector3(0.0, 0.5, -0.75)
-
 func _reset_view() -> void:
-	project_space.transform = Transform3D(Basis.IDENTITY, DEFAULT_PROJECT_OFFSET)
+	project_space.transform = Transform3D(Basis.IDENTITY, app_manager.DEFAULT_PROJECT_OFFSET)
 	left_grip_active = false
 	right_grip_active = false
 	app_manager.reset_panel_position()

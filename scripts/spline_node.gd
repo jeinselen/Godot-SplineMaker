@@ -143,13 +143,6 @@ func set_point_editing(index: int, editing: bool, symmetry_index: int = 0) -> vo
 	_update_point_visual(index, symmetry_index)
 
 
-func is_point_hovered(index: int) -> bool:
-	for symmetry_index in _symmetry_transforms.size():
-		if _visual_key(index, symmetry_index) in _hovered_points:
-			return true
-	return false
-
-
 func get_visible_point_entries() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	if not data:
@@ -169,12 +162,6 @@ func symmetry_to_base(pos: Vector3, symmetry_index: int) -> Vector3:
 	if symmetry_index < 0 or symmetry_index >= _symmetry_transforms.size():
 		return pos
 	return _symmetry_transforms[symmetry_index].inverse() * pos
-
-
-func base_to_symmetry(pos: Vector3, symmetry_index: int) -> Vector3:
-	if symmetry_index < 0 or symmetry_index >= _symmetry_transforms.size():
-		return pos
-	return _symmetry_transforms[symmetry_index] * pos
 
 
 func materialized_spline_data() -> Array[SplineData]:

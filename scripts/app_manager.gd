@@ -3,9 +3,9 @@ extends Node
 ## Top-level app state machine. Manages transitions between main menu and
 ## in-project states, holds settings, and owns the active UI panel.
 
-@onready var project_manager = %ProjectManager
+@onready var project_manager: Node = %ProjectManager
 @onready var project_space: Node3D = %ProjectSpace
-@onready var interaction = %Interaction
+@onready var interaction: Node = %Interaction
 @onready var left_controller: XRController3D = %LeftController
 @onready var right_controller: XRController3D = %RightController
 @onready var xr_camera: XRCamera3D = %XRCamera3D

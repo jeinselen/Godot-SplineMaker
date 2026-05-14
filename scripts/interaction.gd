@@ -6,8 +6,8 @@ extends Node3D
 @onready var left_controller: XRController3D = %LeftController
 @onready var right_controller: XRController3D = %RightController
 @onready var project_space: Node3D = %ProjectSpace
-@onready var project_manager = %ProjectManager
-@onready var app_manager = %AppManager
+@onready var project_manager: Node = %ProjectManager
+@onready var app_manager: Node = %AppManager
 
 var left_action_area: ActionArea
 var right_action_area: ActionArea
@@ -964,7 +964,7 @@ func set_snap_weight_step(step: float) -> void:
 ## Run adjacent-duplicate merge on each spline (used at end of grip/extrude
 ## release so points that landed on the same snap cell collapse cleanly).
 ## Refreshes the mesh and clears hover state for any merged-away points.
-func _merge_duplicates_on(splines: Array) -> void:
+func _merge_duplicates_on(splines: Array[SplineNode]) -> void:
 	for sn in splines:
 		if not is_instance_valid(sn) or sn.data == null:
 			continue
@@ -1034,12 +1034,12 @@ func restore_symmetry_settings(
 	symmetry_settings_changed.emit()
 
 
-func _rebuild_symmetry_transforms(emit_signal: bool = true) -> void:
+func _rebuild_symmetry_transforms(notify: bool = true) -> void:
 	_symmetry_transforms = _make_symmetry_transforms()
 	for child in project_space.get_children():
 		if child is SplineNode:
 			(child as SplineNode).set_symmetry_transforms(_symmetry_transforms)
-	if emit_signal:
+	if notify:
 		symmetry_settings_changed.emit()
 
 
@@ -1095,11 +1095,11 @@ func _radial_basis(axis: int, angle: float) -> Basis:
 	return Basis(Vector3(0, 0, 1), angle)
 
 
-func _basis_key(basis: Basis) -> String:
+func _basis_key(b: Basis) -> String:
 	var values := [
-		basis.x.x, basis.x.y, basis.x.z,
-		basis.y.x, basis.y.y, basis.y.z,
-		basis.z.x, basis.z.y, basis.z.z,
+		b.x.x, b.x.y, b.x.z,
+		b.y.x, b.y.y, b.y.z,
+		b.z.x, b.z.y, b.z.z,
 	]
 	var parts: Array[String] = []
 	for value in values:
@@ -1206,12 +1206,13 @@ func _on_trigger_released(controller_id: int) -> void:
 	# Finalize extrude/insert if active
 	var extruding := _left_extruding if controller_id == CONTROLLER_ID_LEFT else _right_extruding
 	if not extruding.is_empty():
-		var touched_splines := {}
+		var touched_splines: Array[SplineNode] = []
 		for entry in extruding:
 			var sn := entry["spline"] as SplineNode
 			sn.set_point_editing(entry["index"], false, _entry_symmetry_index(entry))
-			touched_splines[sn] = true
-		_merge_duplicates_on(touched_splines.keys())
+			if not touched_splines.has(sn):
+				touched_splines.append(sn)
+		_merge_duplicates_on(touched_splines)
 		if controller_id == CONTROLLER_ID_LEFT:
 			_left_extruding = []
 		else:
@@ -1283,12 +1284,13 @@ func _on_grip_released(controller_id: int) -> void:
 
 	# Clear editing state
 	var grabbed := _left_grip_grabbed if controller_id == CONTROLLER_ID_LEFT else _right_grip_grabbed
-	var touched_splines := {}
+	var touched_splines: Array[SplineNode] = []
 	for entry in grabbed:
 		var sn := entry["spline"] as SplineNode
 		sn.set_point_editing(entry["index"], false, _entry_symmetry_index(entry))
-		touched_splines[sn] = true
-	_merge_duplicates_on(touched_splines.keys())
+		if not touched_splines.has(sn):
+			touched_splines.append(sn)
+	_merge_duplicates_on(touched_splines)
 
 	if controller_id == CONTROLLER_ID_LEFT:
 		_left_grip_translating = false

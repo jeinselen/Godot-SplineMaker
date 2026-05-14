@@ -4,13 +4,12 @@ extends XRPanel
 ## Main menu panel: project list with rename/delete, new project button,
 ## and settings sub-panel. Displayed on app launch before entering a project.
 
-var _app_manager = null
-var _project_manager = null
+var _app_manager: Node = null
+var _project_manager: Node = null
 
 # UI references
 var _main_vbox: VBoxContainer
 var _project_list_container: VBoxContainer
-var _project_scroll: ScrollContainer
 var _settings_view: VBoxContainer
 var _import_view: VBoxContainer
 var _import_list_container: VBoxContainer
@@ -24,13 +23,10 @@ var _panel_side_btn: Button
 var _mesh_res_spin: SpinBox
 var _spline_res_spin: SpinBox
 
-# Delete confirmation state
-var _delete_confirm_dir: String = ""
-var _delete_confirm_row: HBoxContainer = null
+# Delete confirmation state — state flows through closure binds, not stored fields
 
 # Rename state
 var _rename_edit: LineEdit = null
-var _rename_dir: String = ""
 
 # Which overlay view is showing (null = main list, otherwise _settings_view or _import_view)
 var _active_overlay: VBoxContainer = null
@@ -38,7 +34,7 @@ var _active_overlay: VBoxContainer = null
 const PANEL_UI_SCENE := preload("res://scenes/ui/main_menu_panel_ui.tscn")
 
 
-static func create_panel(app_mgr) -> MainMenuPanel:
+static func create_panel(app_mgr: Node) -> MainMenuPanel:
 	var panel := MainMenuPanel.new()
 	panel.panel_size = Vector2(512, 640)
 	panel._app_manager = app_mgr
@@ -74,7 +70,6 @@ func _build_ui() -> void:
 	content_root.add_child(ui)
 
 	_main_vbox = ui.find_child("MainVBox", true, false) as VBoxContainer
-	_project_scroll = ui.find_child("ProjectScroll", true, false) as ScrollContainer
 	_project_list_container = ui.find_child("ProjectList", true, false) as VBoxContainer
 
 	var new_btn := ui.find_child("NewProjectButton", true, false) as Button
@@ -164,7 +159,7 @@ func _refresh_project_list() -> void:
 	for child in _project_list_container.get_children():
 		child.queue_free()
 
-	var dirs: Array = _project_manager.list_project_dirs()
+	var dirs: Array[String] = _project_manager.list_project_dirs()
 
 	if dirs.is_empty():
 		var empty := Label.new()
@@ -227,7 +222,6 @@ func _on_quit_pressed() -> void:
 
 func _on_project_rename_pressed(dir_name: String, row: HBoxContainer) -> void:
 	# Replace the row content with a LineEdit for typing the new name
-	_rename_dir = dir_name
 
 	# Hide existing children
 	for child in row.get_children():
@@ -257,9 +251,6 @@ func _on_rename_submitted(new_name: String, dir_name: String) -> void:
 
 func _on_project_delete_pressed(dir_name: String, row: HBoxContainer) -> void:
 	# Replace row with confirmation
-	_delete_confirm_dir = dir_name
-	_delete_confirm_row = row
-
 	for child in row.get_children():
 		child.visible = false
 
@@ -285,8 +276,6 @@ func _on_project_delete_pressed(dir_name: String, row: HBoxContainer) -> void:
 
 func _on_delete_confirmed(dir_name: String) -> void:
 	_project_manager.delete_project(dir_name)
-	_delete_confirm_dir = ""
-	_delete_confirm_row = null
 	_refresh_project_list()
 
 

@@ -5,13 +5,12 @@ extends Node
 ## a new one. Each autosave writes an incrementally-numbered JSON file.
 
 @onready var project_space: Node3D = %ProjectSpace
-@onready var interaction = %Interaction  # untyped to avoid circular class dependency
+@onready var interaction: Node = %Interaction  # typed as Node to avoid circular class dependency
 
 const PROJECTS_ROOT := "user://projects/"
 const META_FILE := "meta.json"
 const SAVE_PREFIX := "save_"
 const SAVE_EXT := ".json"
-const EXPORT_FILE := "splines.json"
 const JSON_VERSION := 2
 
 @export var max_undo_steps: int = 32
@@ -25,8 +24,6 @@ var preview_spline_resolution: int = 8
 
 signal export_succeeded(path: String)
 signal export_failed(error: String)
-signal project_opened
-signal project_closed
 
 var _project_dir: String = ""
 var _save_counter: int = 0        # total saves ever written; monotonically increases
@@ -51,6 +48,11 @@ func _ready() -> void:
 
 
 # --- Project open / create ---
+
+## Returns true when a project is currently open.
+func has_open_project() -> bool:
+	return not _project_dir.is_empty()
+
 
 ## Lists all project directory names sorted alphabetically.
 func list_project_dirs() -> Array[String]:
@@ -85,7 +87,6 @@ func create_new_project() -> String:
 	interaction.restore_symmetry_settings(false, false, false, false, 1, 6)
 	_write_meta()
 	autosave()  # write initial empty-state save so undo can return to blank canvas
-	project_opened.emit()
 	return timestamp
 
 
@@ -101,7 +102,6 @@ func open_project(dir_name: String) -> void:
 	else:
 		_undo_index = _undo_stack.size() - 1
 		_load_save_file(_undo_stack[_undo_index])
-	project_opened.emit()
 
 
 ## Imports a JSON file as a new project. The project folder is named after the JSON
@@ -346,13 +346,17 @@ func redo() -> void:
 # --- Serialization ---
 
 func _serialize_state(materialize_symmetry: bool = false) -> Dictionary:
-	var splines_data: Array = []
+	var splines_data: Array[Dictionary] = []
 	for child in project_space.get_children():
 		if child is SplineNode:
 			var sn := child as SplineNode
 			if not sn.data or not sn.is_active:
 				continue  # skip in-progress or cancelled DrawPreview nodes
-			var data_items := sn.materialized_spline_data() if materialize_symmetry else [sn.data]
+			var data_items: Array[SplineData]
+			if materialize_symmetry:
+				data_items = sn.materialized_spline_data()
+			else:
+				data_items = [sn.data]
 			for spline_data: SplineData in data_items:
 				splines_data.append(_serialize_spline_data(spline_data))
 	return {
@@ -383,7 +387,7 @@ func _serialize_state(materialize_symmetry: bool = false) -> Dictionary:
 
 
 func _serialize_spline_data(sd: SplineData) -> Dictionary:
-	var pts: Array = []
+	var pts: Array[Dictionary] = []
 	for i in sd.point_count():
 		pts.append({
 			"x": sd.points[i].x,
@@ -523,8 +527,7 @@ func get_export_dir() -> String:
 
 
 ## Closes the current project: exports a clean JSON file to the export directory,
-## clears project space, and emits project_closed.
-## Returns true on successful export, false on failure.
+## clears project space. Returns true on successful export, false on failure.
 func close_project() -> bool:
 	# Flush any pending debounced autosave before closing
 	if _autosave_pending:
@@ -540,7 +543,6 @@ func close_project() -> bool:
 	_save_counter = 0
 	_undo_stack = []
 	_undo_index = -1
-	project_closed.emit()
 	return success
 
 
@@ -589,12 +591,12 @@ func export_json() -> bool:
 # --- Export popups ---
 
 func _on_export_succeeded(path: String) -> void:
-	var am = get_node_or_null("%AppManager")
+	var am: Node = get_node_or_null("%AppManager")
 	if am:
 		am.show_popup("Export saved:\n" + path.get_file(), Color(0.3, 1.0, 0.5))
 
 
 func _on_export_failed(error: String) -> void:
-	var am = get_node_or_null("%AppManager")
+	var am: Node = get_node_or_null("%AppManager")
 	if am:
 		am.show_popup("Export failed:\n" + error, Color(1.0, 0.3, 0.3))

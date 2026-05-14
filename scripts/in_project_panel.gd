@@ -5,11 +5,11 @@ extends XRPanel
 ## selected spline properties. Built entirely in code using Godot Control nodes
 ## inside the XRPanel's SubViewport.
 
-var _app_manager = null  # AppManager reference
-var _project_manager = null
-var _interaction = null
+var _app_manager: Node = null
+var _project_manager: Node = null
+var _interaction: Node = null
 var _project_space: Node3D = null
-var _navigation = null
+var _navigation: Node = null
 
 # UI references
 var _undo_btn: Button
@@ -17,7 +17,6 @@ var _redo_btn: Button
 var _mode_buttons: Array[Button] = []
 var _mode_group: ButtonGroup
 var _accuracy_slider: HSlider
-var _accuracy_container: HBoxContainer
 var _snap_btn: Button
 var _mirror_btn: Button
 var _options_container: PanelContainer
@@ -25,9 +24,7 @@ var _options_content: VBoxContainer
 var _options_title: Label
 var _snap_options_container: VBoxContainer
 var _mirror_options_container: VBoxContainer
-var _spline_list_stack: Control
 var _spline_list_container: VBoxContainer
-var _spline_scroll: ScrollContainer
 var _empty_label: Label
 var _props_container: Control
 var _order_spin: SpinBox
@@ -59,7 +56,7 @@ const OPTIONS_MIRROR := "mirror"
 const PANEL_UI_SCENE := preload("res://scenes/ui/in_project_panel_ui.tscn")
 
 
-static func create_panel(app_mgr) -> InProjectPanel:
+static func create_panel(app_mgr: Node) -> InProjectPanel:
 	var panel := InProjectPanel.new()
 	panel.panel_size = Vector2(512, 768)
 	panel._app_manager = app_mgr
@@ -108,9 +105,6 @@ func _build_ui() -> void:
 		_mode_buttons[i].button_group = _mode_group
 		_mode_buttons[i].pressed.connect(_on_mode_pressed.bind(i))
 
-	_accuracy_container = ui.find_child("AccuracyRow", true, false) as HBoxContainer
-	if _accuracy_container == null:
-		_accuracy_container = ui.find_child("ModeRow", true, false) as HBoxContainer
 	_accuracy_slider = ui.find_child("SmoothnessSlider", true, false) as HSlider
 	_accuracy_slider.value = _interaction.curve_smoothness
 	_accuracy_slider.value_changed.connect(_on_accuracy_changed)
@@ -121,8 +115,6 @@ func _build_ui() -> void:
 	_mirror_btn = ui.find_child("MirrorButton", true, false) as Button
 	_mirror_btn.pressed.connect(_on_mirror_options_pressed)
 
-	_spline_list_stack = ui.find_child("SplineListStack", true, false) as Control
-	_spline_scroll = ui.find_child("SplineScroll", true, false) as ScrollContainer
 	_spline_list_container = ui.find_child("SplineList", true, false) as VBoxContainer
 	_empty_label = ui.find_child("EmptyLabel", true, false) as Label
 
@@ -404,7 +396,7 @@ func _on_mode_pressed(mode_index: int) -> void:
 	_interaction.set_mode(mode_map[mode_index])
 
 
-func _on_mode_changed(_mode) -> void:
+func _on_mode_changed(_mode: int) -> void:
 	_update_mode_buttons()
 
 
@@ -537,14 +529,3 @@ func _on_cyclic_toggled(toggled_on: bool) -> void:
 		spline.data.cyclic = toggled_on
 		spline.mark_dirty()
 		_project_manager.autosave()
-
-
-# --- Helpers ---
-
-func _make_button(text: String, parent: Control) -> Button:
-	var btn := Button.new()
-	btn.text = text
-	btn.add_theme_font_size_override("font_size", 18)
-	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	parent.add_child(btn)
-	return btn
