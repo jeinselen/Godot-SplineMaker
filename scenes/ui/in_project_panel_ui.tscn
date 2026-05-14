@@ -254,7 +254,6 @@ text = "X Axis"
 
 [node name="MirrorXCheck" type="CheckButton" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions/MirrorXRow" unique_id=1272095661]
 layout_mode = 2
-disabled = true
 
 [node name="MirrorYRow" type="HBoxContainer" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions" unique_id=1533904193]
 layout_mode = 2
@@ -269,7 +268,6 @@ text = "Y Axis"
 
 [node name="MirrorYCheck" type="CheckButton" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions/MirrorYRow" unique_id=1296434906]
 layout_mode = 2
-disabled = true
 
 [node name="MirrorZRow" type="HBoxContainer" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions" unique_id=1227088592]
 layout_mode = 2
@@ -284,7 +282,6 @@ text = "Z Axis"
 
 [node name="MirrorZCheck" type="CheckButton" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions/MirrorZRow" unique_id=325949748]
 layout_mode = 2
-disabled = true
 
 [node name="MirrorModeRow" type="HBoxContainer" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions" unique_id=1020477732]
 layout_mode = 2
@@ -295,21 +292,60 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
 theme_override_font_sizes/font_size = 18
-text = "Mode"
+text = "Radial"
 
-[node name="MirrorModeButton" type="OptionButton" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions/MirrorModeRow" unique_id=1506560691]
-custom_minimum_size = Vector2(150, 0)
+[node name="RadialCheck" type="CheckButton" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions/MirrorModeRow" unique_id=1506560691]
 layout_mode = 2
+
+[node name="RadialAxisRow" type="HBoxContainer" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="RadialAxisLabel" type="Label" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions/RadialAxisRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
 theme_override_font_sizes/font_size = 18
-disabled = true
-selected = 0
-item_count = 3
-popup/item_0/text = "Disabled"
-popup/item_0/id = 0
-popup/item_1/text = "Live"
-popup/item_1/id = 1
-popup/item_2/text = "Apply"
-popup/item_2/id = 2
+text = "Axis"
+
+[node name="RadialAxisXButton" type="Button" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions/RadialAxisRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+toggle_mode = true
+text = "X"
+
+[node name="RadialAxisYButton" type="Button" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions/RadialAxisRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+toggle_mode = true
+text = "Y"
+
+[node name="RadialAxisZButton" type="Button" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions/RadialAxisRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+toggle_mode = true
+text = "Z"
+
+[node name="RadialCopiesRow" type="HBoxContainer" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="RadialCopiesLabel" type="Label" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions/RadialCopiesRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+text = "Copies"
+
+[node name="RadialCopiesSpin" type="SpinBox" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions/RadialCopiesRow"]
+custom_minimum_size = Vector2(88, 0)
+layout_mode = 2
+min_value = 2.0
+max_value = 32.0
+value = 6.0
 
 [node name="SeparatorC" type="HSeparator" parent="Margin/MainVBox" unique_id=1396230359]
 layout_mode = 2

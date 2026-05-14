@@ -38,6 +38,13 @@ var _snap_weight_check: CheckButton
 var _snap_pos_step: SpinBox
 var _snap_size_step: SpinBox
 var _snap_weight_step: SpinBox
+var _mirror_x_check: CheckButton
+var _mirror_y_check: CheckButton
+var _mirror_z_check: CheckButton
+var _radial_check: CheckButton
+var _radial_axis_buttons: Array[Button] = []
+var _radial_axis_group: ButtonGroup
+var _radial_copies_spin: SpinBox
 
 # Track spline list items for efficient updates
 var _spline_rows: Array[Dictionary] = []  # [{node: HBoxContainer, spline: SplineNode}]
@@ -144,6 +151,29 @@ func _build_ui() -> void:
 	_wire_snap_step_keyboard(_snap_weight_step)
 	_refresh_snap_checks()
 
+	_mirror_x_check = ui.find_child("MirrorXCheck", true, false) as CheckButton
+	_mirror_y_check = ui.find_child("MirrorYCheck", true, false) as CheckButton
+	_mirror_z_check = ui.find_child("MirrorZCheck", true, false) as CheckButton
+	_mirror_x_check.toggled.connect(_on_mirror_x_toggled)
+	_mirror_y_check.toggled.connect(_on_mirror_y_toggled)
+	_mirror_z_check.toggled.connect(_on_mirror_z_toggled)
+
+	_radial_check = ui.find_child("RadialCheck", true, false) as CheckButton
+	_radial_check.toggled.connect(_on_radial_toggled)
+	_radial_axis_group = ButtonGroup.new()
+	_radial_axis_buttons = [
+		ui.find_child("RadialAxisXButton", true, false) as Button,
+		ui.find_child("RadialAxisYButton", true, false) as Button,
+		ui.find_child("RadialAxisZButton", true, false) as Button,
+	]
+	for i in _radial_axis_buttons.size():
+		_radial_axis_buttons[i].button_group = _radial_axis_group
+		_radial_axis_buttons[i].pressed.connect(_on_radial_axis_pressed.bind(i))
+	_radial_copies_spin = ui.find_child("RadialCopiesSpin", true, false) as SpinBox
+	_radial_copies_spin.value_changed.connect(_on_radial_copies_changed)
+	_wire_snap_step_keyboard(_radial_copies_spin)
+	_refresh_symmetry_checks()
+
 	_props_container = ui.find_child("PropsContainer", true, false) as Control
 	if _props_container == null:
 		_props_container = ui.find_child("BottomRow", true, false) as Control
@@ -162,6 +192,7 @@ func _connect_signals() -> void:
 	_interaction.spline_selected.connect(_on_spline_selected)
 	_interaction.mode_changed.connect(_on_mode_changed)
 	_interaction.snap_settings_changed.connect(_refresh_snap_checks)
+	_interaction.symmetry_settings_changed.connect(_refresh_symmetry_checks)
 
 
 # --- Snap toggles ---
@@ -236,6 +267,51 @@ func _refresh_snap_checks() -> void:
 	_update_options_buttons()
 
 
+func _on_mirror_x_toggled(on: bool) -> void:
+	_interaction.set_mirror_axis_enabled(0, on)
+	_update_options_buttons()
+
+
+func _on_mirror_y_toggled(on: bool) -> void:
+	_interaction.set_mirror_axis_enabled(1, on)
+	_update_options_buttons()
+
+
+func _on_mirror_z_toggled(on: bool) -> void:
+	_interaction.set_mirror_axis_enabled(2, on)
+	_update_options_buttons()
+
+
+func _on_radial_toggled(on: bool) -> void:
+	_interaction.set_radial_enabled(on)
+	_update_options_buttons()
+
+
+func _on_radial_axis_pressed(axis: int) -> void:
+	_interaction.set_radial_axis(axis)
+
+
+func _on_radial_copies_changed(value: float) -> void:
+	_interaction.set_radial_copies(int(value))
+
+
+func _refresh_symmetry_checks() -> void:
+	if _mirror_x_check:
+		_mirror_x_check.set_pressed_no_signal(_interaction.mirror_x_enabled)
+	if _mirror_y_check:
+		_mirror_y_check.set_pressed_no_signal(_interaction.mirror_y_enabled)
+	if _mirror_z_check:
+		_mirror_z_check.set_pressed_no_signal(_interaction.mirror_z_enabled)
+	if _radial_check:
+		_radial_check.set_pressed_no_signal(_interaction.radial_enabled)
+	for i in _radial_axis_buttons.size():
+		if _radial_axis_buttons[i]:
+			_radial_axis_buttons[i].set_pressed_no_signal(i == _interaction.radial_axis)
+	if _radial_copies_spin:
+		_radial_copies_spin.set_value_no_signal(_interaction.radial_copies)
+	_update_options_buttons()
+
+
 func _on_snap_options_pressed() -> void:
 	_set_options_panel(OPTIONS_NONE if _active_options_panel == OPTIONS_SNAP else OPTIONS_SNAP)
 
@@ -279,7 +355,12 @@ func _snap_options_enabled() -> bool:
 
 
 func _mirror_options_enabled() -> bool:
-	return false
+	return (
+		_interaction.mirror_x_enabled
+		or _interaction.mirror_y_enabled
+		or _interaction.mirror_z_enabled
+		or _interaction.radial_enabled
+	)
 
 
 func _process(delta: float) -> void:

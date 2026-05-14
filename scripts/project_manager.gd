@@ -82,6 +82,7 @@ func create_new_project() -> String:
 	# Reset snap state so a fresh project starts at documented defaults rather
 	# than inheriting the previous project's toggles.
 	interaction.restore_snap_settings(false, false, false, 0.1, 0.1, 1.0)
+	interaction.restore_symmetry_settings(false, false, false, false, 1, 6)
 	_write_meta()
 	autosave()  # write initial empty-state save so undo can return to blank canvas
 	project_opened.emit()
@@ -344,27 +345,16 @@ func redo() -> void:
 
 # --- Serialization ---
 
-func _serialize_state() -> Dictionary:
+func _serialize_state(materialize_symmetry: bool = false) -> Dictionary:
 	var splines_data: Array = []
 	for child in project_space.get_children():
 		if child is SplineNode:
 			var sn := child as SplineNode
 			if not sn.data or not sn.is_active:
 				continue  # skip in-progress or cancelled DrawPreview nodes
-			var pts: Array = []
-			for i in sn.data.point_count():
-				pts.append({
-					"x": sn.data.points[i].x,
-					"y": sn.data.points[i].y,
-					"z": sn.data.points[i].z,
-					"size": sn.data.sizes[i],
-					"weight": sn.data.weights[i],
-				})
-			splines_data.append({
-				"order_u": sn.data.order_u,
-				"cyclic": sn.data.cyclic,
-				"points": pts,
-			})
+			var data_items := sn.materialized_spline_data() if materialize_symmetry else [sn.data]
+			for spline_data: SplineData in data_items:
+				splines_data.append(_serialize_spline_data(spline_data))
 	return {
 		"version": JSON_VERSION,
 		"curve_smoothness": interaction.curve_smoothness,
@@ -381,6 +371,31 @@ func _serialize_state() -> Dictionary:
 			"size_step":        interaction.snap_size_step,
 			"weight_step":      interaction.snap_weight_step,
 		},
+		"symmetry": {
+			"mirror_x": interaction.mirror_x_enabled,
+			"mirror_y": interaction.mirror_y_enabled,
+			"mirror_z": interaction.mirror_z_enabled,
+			"radial_enabled": interaction.radial_enabled,
+			"radial_axis": interaction.radial_axis,
+			"radial_copies": interaction.radial_copies,
+		},
+	}
+
+
+func _serialize_spline_data(sd: SplineData) -> Dictionary:
+	var pts: Array = []
+	for i in sd.point_count():
+		pts.append({
+			"x": sd.points[i].x,
+			"y": sd.points[i].y,
+			"z": sd.points[i].z,
+			"size": sd.sizes[i],
+			"weight": sd.weights[i],
+		})
+	return {
+		"order_u": sd.order_u,
+		"cyclic": sd.cyclic,
+		"points": pts,
 	}
 
 
@@ -414,6 +429,7 @@ func _restore_state(state: Dictionary) -> void:
 		sn.data = sd
 		sn.mesh_edge_count = preview_mesh_resolution
 		sn.spline_resolution = preview_spline_resolution
+		sn.set_symmetry_transforms(interaction._symmetry_transforms)
 		project_space.add_child(sn)
 		sn.set_active(true)
 		sn.mark_dirty()
@@ -442,6 +458,16 @@ func _restore_state(state: Dictionary) -> void:
 		float(snap.get("position_step", 0.1)),
 		float(snap.get("size_step", 0.1)),
 		float(snap.get("weight_step", 1.0)),
+	)
+
+	var symmetry: Dictionary = state.get("symmetry", {})
+	interaction.restore_symmetry_settings(
+		bool(symmetry.get("mirror_x", false)),
+		bool(symmetry.get("mirror_y", false)),
+		bool(symmetry.get("mirror_z", false)),
+		bool(symmetry.get("radial_enabled", false)),
+		int(symmetry.get("radial_axis", 1)),
+		int(symmetry.get("radial_copies", 6)),
 	)
 
 	_is_restoring = false
@@ -542,7 +568,7 @@ func export_json() -> bool:
 	var export_path := export_dir + project_name + ".json"
 
 	# Serialize current state (same format used by autosave)
-	var state := _serialize_state()
+	var state := _serialize_state(true)
 
 	# Write the file
 	var fa := FileAccess.open(export_path, FileAccess.WRITE)

@@ -21,6 +21,7 @@ var spline_resolution: int = 8
 ## Position snap step. 0.0 means no snapping. Set by interaction.gd before
 ## calling begin(); applied at every point commit.
 var snap_position_step: float = 0.0
+var symmetry_transforms: Array[Basis] = [Basis.IDENTITY]
 
 ## The spline node being built (lives under ProjectSpace).
 var spline_node: SplineNode = null
@@ -59,6 +60,7 @@ func begin(start_pos: Vector3, start_size: float, parent: Node3D) -> void:
 	spline_node.name = "DrawPreview"
 	spline_node.mesh_edge_count = mesh_edge_count
 	spline_node.spline_resolution = spline_resolution
+	spline_node.set_symmetry_transforms(symmetry_transforms)
 	parent.add_child(spline_node)
 
 	# Tip mesh for the leading edge

@@ -15,20 +15,22 @@ var is_active: bool = false     # True for finalized splines (not in-progress pr
 var is_selected: bool = false   # True for the currently selected spline (visual highlight)
 
 var _mesh_instance: MeshInstance3D
+var _mesh_instances: Array[MeshInstance3D] = []
 var _material: StandardMaterial3D
 var _dirty: bool = true
+var _symmetry_transforms: Array[Basis] = [Basis.IDENTITY]
 
 # Control point visualization
 var _cp_container: Node3D
-var _cp_meshes: Array[MeshInstance3D] = []
-var _cp_line_mesh_instance: MeshInstance3D
+var _cp_meshes: Array[Array] = []
+var _cp_line_mesh_instances: Array[MeshInstance3D] = []
 var _cp_cube_mesh: BoxMesh
 var _cp_mat_normal: StandardMaterial3D
 var _cp_mat_hover: StandardMaterial3D
 var _cp_line_mat: StandardMaterial3D
 
-# Per-point hover state: tracks which controllers are hovering each point
-# Key = point index, Value = array of controller identifiers
+# Per-visible-point hover state. Key = "symmetry_index:point_index",
+# value = array of controller identifiers.
 var _hovered_points: Dictionary = {}
 # Points being actively edited (trigger held)
 var _editing_points: Dictionary = {}
@@ -41,6 +43,7 @@ func _ready() -> void:
 	_mesh_instance = MeshInstance3D.new()
 	_mesh_instance.material_override = _material
 	add_child(_mesh_instance)
+	_mesh_instances.append(_mesh_instance)
 
 	# Control point container (child of this node, so aligned to project space)
 	_cp_container = Node3D.new()
@@ -70,10 +73,7 @@ func _ready() -> void:
 	_cp_line_mat.albedo_color.a = 0.5
 	_cp_line_mat.next_pass = _make_xray_material(COLOR_NEUTRAL, 0.15)
 
-	# Line mesh instance
-	_cp_line_mesh_instance = MeshInstance3D.new()
-	_cp_line_mesh_instance.name = "ControlPointLines"
-	_cp_container.add_child(_cp_line_mesh_instance)
+	_ensure_symmetry_visual_count()
 
 	if data:
 		rebuild_mesh()
@@ -95,6 +95,19 @@ func mark_dirty() -> void:
 	_dirty = true
 
 
+func set_symmetry_transforms(transforms: Array[Basis]) -> void:
+	_symmetry_transforms = transforms.duplicate()
+	if _symmetry_transforms.is_empty():
+		_symmetry_transforms = [Basis.IDENTITY]
+	if is_inside_tree():
+		_ensure_symmetry_visual_count()
+	mark_dirty()
+
+
+func get_symmetry_transforms() -> Array[Basis]:
+	return _symmetry_transforms.duplicate()
+
+
 func set_active(active: bool) -> void:
 	is_active = active
 
@@ -104,44 +117,96 @@ func set_selected(selected: bool) -> void:
 	_update_control_point_colors()
 
 
-func set_point_hovered(index: int, hovered: bool, controller_id: int) -> void:
+func set_point_hovered(index: int, hovered: bool, controller_id: int, symmetry_index: int = 0) -> void:
+	var visual_key := _visual_key(index, symmetry_index)
 	if hovered:
-		if index not in _hovered_points:
-			_hovered_points[index] = []
-		var arr: Array = _hovered_points[index]
+		if visual_key not in _hovered_points:
+			_hovered_points[visual_key] = []
+		var arr: Array = _hovered_points[visual_key]
 		if controller_id not in arr:
 			arr.append(controller_id)
 	else:
-		if index in _hovered_points:
-			var arr: Array = _hovered_points[index]
+		if visual_key in _hovered_points:
+			var arr: Array = _hovered_points[visual_key]
 			arr.erase(controller_id)
 			if arr.is_empty():
-				_hovered_points.erase(index)
-	_update_point_visual(index)
+				_hovered_points.erase(visual_key)
+	_update_point_visual(index, symmetry_index)
 
 
-func set_point_editing(index: int, editing: bool) -> void:
+func set_point_editing(index: int, editing: bool, symmetry_index: int = 0) -> void:
+	var visual_key := _visual_key(index, symmetry_index)
 	if editing:
-		_editing_points[index] = true
+		_editing_points[visual_key] = true
 	else:
-		_editing_points.erase(index)
-	_update_point_visual(index)
+		_editing_points.erase(visual_key)
+	_update_point_visual(index, symmetry_index)
 
 
 func is_point_hovered(index: int) -> bool:
-	return index in _hovered_points
+	for symmetry_index in _symmetry_transforms.size():
+		if _visual_key(index, symmetry_index) in _hovered_points:
+			return true
+	return false
+
+
+func get_visible_point_entries() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if not data:
+		return result
+	for symmetry_index in _symmetry_transforms.size():
+		var xf := _symmetry_transforms[symmetry_index]
+		for i in data.point_count():
+			result.append({
+				"index": i,
+				"symmetry_index": symmetry_index,
+				"position": xf * data.points[i],
+			})
+	return result
+
+
+func symmetry_to_base(pos: Vector3, symmetry_index: int) -> Vector3:
+	if symmetry_index < 0 or symmetry_index >= _symmetry_transforms.size():
+		return pos
+	return _symmetry_transforms[symmetry_index].inverse() * pos
+
+
+func base_to_symmetry(pos: Vector3, symmetry_index: int) -> Vector3:
+	if symmetry_index < 0 or symmetry_index >= _symmetry_transforms.size():
+		return pos
+	return _symmetry_transforms[symmetry_index] * pos
+
+
+func materialized_spline_data() -> Array[SplineData]:
+	var result: Array[SplineData] = []
+	if not data:
+		return result
+	for xf in _symmetry_transforms:
+		var sd := SplineData.new()
+		sd.order_u = data.order_u
+		sd.cyclic = data.cyclic
+		for i in data.point_count():
+			sd.add_point(xf * data.points[i], data.sizes[i], data.weights[i])
+		result.append(sd)
+	return result
 
 
 func rebuild_mesh() -> void:
+	_ensure_symmetry_visual_count()
 	if not data or data.point_count() < 2:
-		if _mesh_instance:
-			_mesh_instance.mesh = null
+		for mi in _mesh_instances:
+			mi.mesh = null
 		return
 
 	var polyline := NurbsEval.eval_curve(data, spline_resolution)
 	var radii := NurbsEval.eval_curve_sizes(data, spline_resolution)
-	var mesh := TubeMesh.generate(polyline, radii, mesh_edge_count, data.cyclic)
-	_mesh_instance.mesh = mesh
+	for symmetry_index in _symmetry_transforms.size():
+		var xf := _symmetry_transforms[symmetry_index]
+		var transformed := PackedVector3Array()
+		transformed.resize(polyline.size())
+		for i in polyline.size():
+			transformed[i] = xf * polyline[i]
+		_mesh_instances[symmetry_index].mesh = TubeMesh.generate(transformed, radii, mesh_edge_count, data.cyclic)
 
 
 func _rebuild_control_points() -> void:
@@ -149,23 +214,29 @@ func _rebuild_control_points() -> void:
 		return
 
 	var n := data.point_count()
+	var symmetry_count := _symmetry_transforms.size()
+	_ensure_symmetry_visual_count()
 
-	# Resize cube mesh array
-	while _cp_meshes.size() < n:
-		var mi := MeshInstance3D.new()
-		mi.mesh = _cp_cube_mesh
-		mi.material_override = _cp_mat_normal
-		_cp_container.add_child(mi)
-		_cp_meshes.append(mi)
+	for symmetry_index in symmetry_count:
+		var meshes := _cp_meshes[symmetry_index]
 
-	while _cp_meshes.size() > n:
-		var mi := _cp_meshes.pop_back() as MeshInstance3D
-		mi.queue_free()
+		# Resize cube mesh array
+		while meshes.size() < n:
+			var mi := MeshInstance3D.new()
+			mi.mesh = _cp_cube_mesh
+			mi.material_override = _cp_mat_normal
+			_cp_container.add_child(mi)
+			meshes.append(mi)
 
-	# Update positions and visuals
-	for i in n:
-		_cp_meshes[i].position = data.points[i]
-		_update_point_visual(i)
+		while meshes.size() > n:
+			var mi := meshes.pop_back() as MeshInstance3D
+			mi.queue_free()
+
+		# Update positions and visuals
+		var xf := _symmetry_transforms[symmetry_index]
+		for i in n:
+			meshes[i].position = xf * data.points[i]
+			_update_point_visual(i, symmetry_index)
 
 	# Rebuild connecting lines
 	_rebuild_lines()
@@ -173,14 +244,14 @@ func _rebuild_control_points() -> void:
 	# Clean up stale hover/editing state
 	var keys_to_remove: Array = []
 	for key in _hovered_points:
-		if key >= n:
+		if _point_index_from_visual_key(str(key)) >= n:
 			keys_to_remove.append(key)
 	for key in keys_to_remove:
 		_hovered_points.erase(key)
 
 	keys_to_remove.clear()
 	for key in _editing_points:
-		if key >= n:
+		if _point_index_from_visual_key(str(key)) >= n:
 			keys_to_remove.append(key)
 	for key in keys_to_remove:
 		_editing_points.erase(key)
@@ -189,33 +260,40 @@ func _rebuild_control_points() -> void:
 func _rebuild_lines() -> void:
 	var n := data.point_count()
 	if n < 2:
-		_cp_line_mesh_instance.mesh = null
+		for line_mi in _cp_line_mesh_instances:
+			line_mi.mesh = null
 		return
 
-	var im := ImmediateMesh.new()
 	var line_color := COLOR_ACTIVE if is_selected else COLOR_NEUTRAL
 	_cp_line_mat.albedo_color = Color(line_color.r, line_color.g, line_color.b, 0.5)
 	(_cp_line_mat.next_pass as StandardMaterial3D).albedo_color = Color(line_color.r, line_color.g, line_color.b, 0.15)
 
-	im.surface_begin(Mesh.PRIMITIVE_LINES, _cp_line_mat)
-	for i in n - 1:
-		im.surface_add_vertex(data.points[i])
-		im.surface_add_vertex(data.points[i + 1])
-	if data.cyclic and n > 2:
-		im.surface_add_vertex(data.points[n - 1])
-		im.surface_add_vertex(data.points[0])
-	im.surface_end()
+	for symmetry_index in _symmetry_transforms.size():
+		var im := ImmediateMesh.new()
+		var xf := _symmetry_transforms[symmetry_index]
+		im.surface_begin(Mesh.PRIMITIVE_LINES, _cp_line_mat)
+		for i in n - 1:
+			im.surface_add_vertex(xf * data.points[i])
+			im.surface_add_vertex(xf * data.points[i + 1])
+		if data.cyclic and n > 2:
+			im.surface_add_vertex(xf * data.points[n - 1])
+			im.surface_add_vertex(xf * data.points[0])
+		im.surface_end()
 
-	_cp_line_mesh_instance.mesh = im
+		_cp_line_mesh_instances[symmetry_index].mesh = im
 
 
-func _update_point_visual(index: int) -> void:
-	if index < 0 or index >= _cp_meshes.size():
+func _update_point_visual(index: int, symmetry_index: int = 0) -> void:
+	if symmetry_index < 0 or symmetry_index >= _cp_meshes.size():
+		return
+	var meshes := _cp_meshes[symmetry_index]
+	if index < 0 or index >= meshes.size():
 		return
 
-	var mi := _cp_meshes[index]
-	var hovered := index in _hovered_points
-	var editing := index in _editing_points
+	var mi := meshes[index] as MeshInstance3D
+	var visual_key := _visual_key(index, symmetry_index)
+	var hovered := visual_key in _hovered_points
+	var editing := visual_key in _editing_points
 
 	# Color
 	if hovered or editing:
@@ -239,8 +317,50 @@ func _update_control_point_colors() -> void:
 	if data and data.point_count() >= 2:
 		_rebuild_lines()
 	# Re-apply visuals on all points
-	for i in _cp_meshes.size():
-		_update_point_visual(i)
+	for symmetry_index in _cp_meshes.size():
+		for i in (_cp_meshes[symmetry_index] as Array).size():
+			_update_point_visual(i, symmetry_index)
+
+
+func _ensure_symmetry_visual_count() -> void:
+	if _cp_container == null:
+		return
+	while _mesh_instances.size() < _symmetry_transforms.size():
+		var mi := MeshInstance3D.new()
+		mi.material_override = _material
+		add_child(mi)
+		_mesh_instances.append(mi)
+	while _mesh_instances.size() > _symmetry_transforms.size():
+		var mi := _mesh_instances.pop_back() as MeshInstance3D
+		mi.queue_free()
+
+	while _cp_line_mesh_instances.size() < _symmetry_transforms.size():
+		var line_mi := MeshInstance3D.new()
+		line_mi.name = "ControlPointLines"
+		_cp_container.add_child(line_mi)
+		_cp_line_mesh_instances.append(line_mi)
+	while _cp_line_mesh_instances.size() > _symmetry_transforms.size():
+		var line_mi := _cp_line_mesh_instances.pop_back() as MeshInstance3D
+		line_mi.queue_free()
+
+	while _cp_meshes.size() < _symmetry_transforms.size():
+		_cp_meshes.append([])
+	while _cp_meshes.size() > _symmetry_transforms.size():
+		var meshes := _cp_meshes.pop_back() as Array
+		for mi in meshes:
+			if is_instance_valid(mi):
+				(mi as MeshInstance3D).queue_free()
+
+
+static func _visual_key(index: int, symmetry_index: int) -> String:
+	return "%d:%d" % [symmetry_index, index]
+
+
+static func _point_index_from_visual_key(key: String) -> int:
+	var parts := key.split(":")
+	if parts.size() < 2:
+		return -1
+	return int(parts[1])
 
 
 static func _make_xray_material(color: Color, alpha: float = XRAY_ALPHA) -> StandardMaterial3D:

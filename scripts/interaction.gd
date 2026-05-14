@@ -41,6 +41,17 @@ signal mode_changed(mode: Mode)
 ## panel can sync its CheckButtons. Not emitted by the setters themselves —
 ## those are user-driven from the panel.
 signal snap_settings_changed
+signal symmetry_settings_changed
+
+# Mirroring and radial symmetry are project-level virtual transforms. Spline
+# data stores only the authored points; SplineNode materializes editable copies.
+var mirror_x_enabled: bool = false
+var mirror_y_enabled: bool = false
+var mirror_z_enabled: bool = false
+var radial_enabled: bool = false
+var radial_axis: int = 1 # 0=X, 1=Y, 2=Z
+var radial_copies: int = 6
+var _symmetry_transforms: Array[Basis] = [Basis.IDENTITY]
 
 # Per-controller state
 var _left_trigger_active: bool = false
@@ -333,20 +344,24 @@ func _update_hover(controller_id: int, controller: XRController3D, action_area: 
 			var spline_node := child as SplineNode
 			if not spline_node.data:
 				continue
-			for i in spline_node.data.point_count():
-				var pt := spline_node.data.points[i]
+			for visible_entry in spline_node.get_visible_point_entries():
+				var pt: Vector3 = visible_entry["position"]
 				if area_local_pos.distance_to(pt) <= local_radius:
-					new_hover_set.append({"spline": spline_node, "index": i})
+					new_hover_set.append({
+						"spline": spline_node,
+						"index": visible_entry["index"],
+						"symmetry_index": visible_entry["symmetry_index"],
+					})
 
 	# Diff: unhover points no longer in set
 	for entry in prev_hover_set:
 		if not _hover_set_contains(new_hover_set, entry):
-			(entry["spline"] as SplineNode).set_point_hovered(entry["index"], false, controller_id)
+			(entry["spline"] as SplineNode).set_point_hovered(entry["index"], false, controller_id, _entry_symmetry_index(entry))
 
 	# Diff: hover new points
 	for entry in new_hover_set:
 		if not _hover_set_contains(prev_hover_set, entry):
-			(entry["spline"] as SplineNode).set_point_hovered(entry["index"], true, controller_id)
+			(entry["spline"] as SplineNode).set_point_hovered(entry["index"], true, controller_id, _entry_symmetry_index(entry))
 
 	# Detect if the hover set actually changed
 	var hover_changed := prev_hover_set.size() != new_hover_set.size()
@@ -380,9 +395,36 @@ func _update_hover(controller_id: int, controller: XRController3D, action_area: 
 
 func _hover_set_contains(hover_set: Array[Dictionary], entry: Dictionary) -> bool:
 	for e in hover_set:
-		if e["spline"] == entry["spline"] and e["index"] == entry["index"]:
+		if e["spline"] == entry["spline"] and e["index"] == entry["index"] and _entry_symmetry_index(e) == _entry_symmetry_index(entry):
 			return true
 	return false
+
+
+func _canonical_hover_set(hover_set: Array[Dictionary]) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var seen := {}
+	for entry in hover_set:
+		var sn := entry["spline"] as SplineNode
+		var key := "%d:%d" % [sn.get_instance_id(), int(entry["index"])]
+		if seen.has(key):
+			continue
+		seen[key] = true
+		result.append(entry)
+	return result
+
+
+func _entry_symmetry_index(entry: Dictionary) -> int:
+	return int(entry.get("symmetry_index", 0))
+
+
+func _entry_to_base_position(entry: Dictionary, visible_pos: Vector3) -> Vector3:
+	var sn := entry["spline"] as SplineNode
+	return sn.symmetry_to_base(visible_pos, _entry_symmetry_index(entry))
+
+
+func _controller_basis_in_base(controller: XRController3D, symmetry_basis: Basis) -> Basis:
+	var ps_inv_basis := project_space.global_transform.basis.inverse()
+	return symmetry_basis.inverse() * ps_inv_basis * controller.global_transform.basis
 
 
 func _get_hover_set(controller_id: int) -> Array[Dictionary]:
@@ -418,6 +460,7 @@ func _begin_drawing(controller_id: int) -> void:
 	stroke.mesh_edge_count = app_manager.settings.preview_mesh_resolution
 	stroke.spline_resolution = app_manager.settings.preview_spline_resolution
 	stroke.snap_position_step = snap_position_step if snap_position_enabled else 0.0
+	stroke.symmetry_transforms = _symmetry_transforms
 	stroke.begin(pos, size_val, project_space)
 
 	if controller_id == CONTROLLER_ID_LEFT:
@@ -463,6 +506,7 @@ func _finalize_drawing(controller_id: int) -> void:
 	else:
 		# Stroke is already finalized — just mark it as a permanent spline
 		if stroke.spline_node:
+			stroke.spline_node.set_symmetry_transforms(_symmetry_transforms)
 			stroke.spline_node.set_active(true)
 			stroke.spline_node.name = "Spline"
 			select_spline(stroke.spline_node)
@@ -515,8 +559,8 @@ func _show_short_draw_warning(_controller_id: int) -> void:
 
 func _begin_extrude_or_insert(controller_id: int, hover_set: Array[Dictionary]) -> void:
 	var controller := left_controller if controller_id == CONTROLLER_ID_LEFT else right_controller
-	var ctrl_local_pos := project_space.global_transform.affine_inverse() * controller.global_position
-	ctrl_local_pos = snap_pos(ctrl_local_pos)
+	hover_set = _canonical_hover_set(hover_set)
+	var ctrl_visible_pos := project_space.global_transform.affine_inverse() * controller.global_position
 
 	# Separate endpoints from mid-points
 	var endpoints: Array[Dictionary] = []
@@ -541,7 +585,7 @@ func _begin_extrude_or_insert(controller_id: int, hover_set: Array[Dictionary]) 
 			var src_size := sn.data.sizes[idx]
 			var src_weight := sn.data.weights[idx]
 			# Single: snap to controller. Multi: keep at source position.
-			var new_pos := ctrl_local_pos if not is_multi else snap_pos(src_pos)
+			var new_pos := snap_pos(_entry_to_base_position(entry, ctrl_visible_pos)) if not is_multi else snap_pos(src_pos)
 			var new_idx: int
 			if idx == 0:
 				sn.data.insert_point(0, new_pos, src_size, src_weight)
@@ -550,8 +594,8 @@ func _begin_extrude_or_insert(controller_id: int, hover_set: Array[Dictionary]) 
 				sn.data.add_point(new_pos, src_size, src_weight)
 				new_idx = sn.data.point_count() - 1
 			sn.mark_dirty()
-			sn.set_point_editing(new_idx, true)
-			new_points.append({"spline": sn, "index": new_idx, "initial_pos": new_pos})
+			sn.set_point_editing(new_idx, true, _entry_symmetry_index(entry))
+			new_points.append({"spline": sn, "index": new_idx, "initial_pos": new_pos, "symmetry_index": _entry_symmetry_index(entry)})
 	else:
 		# Insert mid-points: only lowest index per spline
 		is_multi = midpoints.size() > 1
@@ -570,20 +614,23 @@ func _begin_extrude_or_insert(controller_id: int, hover_set: Array[Dictionary]) 
 			var avg_size := (sn.data.sizes[idx] + sn.data.sizes[next_idx]) * 0.5
 			var avg_weight := (sn.data.weights[idx] + sn.data.weights[next_idx]) * 0.5
 			# Single: snap to controller. Multi: place at midpoint between neighbors.
-			var new_pos := ctrl_local_pos if not is_multi else snap_pos((sn.data.points[idx] + sn.data.points[next_idx]) * 0.5)
+			var new_pos := snap_pos(_entry_to_base_position(entry, ctrl_visible_pos)) if not is_multi else snap_pos((sn.data.points[idx] + sn.data.points[next_idx]) * 0.5)
 			sn.data.insert_point(next_idx, new_pos, avg_size, avg_weight)
 			sn.mark_dirty()
-			sn.set_point_editing(next_idx, true)
-			new_points.append({"spline": sn, "index": next_idx, "initial_pos": new_pos})
+			sn.set_point_editing(next_idx, true, _entry_symmetry_index(entry))
+			new_points.append({"spline": sn, "index": next_idx, "initial_pos": new_pos, "symmetry_index": _entry_symmetry_index(entry)})
 
 	# Store extrude state
 	_extrude_multi[controller_id] = is_multi
 	_extrude_scale[controller_id] = 1.0
-	if is_multi:
+	if is_multi and not new_points.is_empty():
 		# Snapshot controller transform for delta-transform (like grip)
-		_extrude_initial_pos[controller_id] = ctrl_local_pos
-		var ps_inv_basis := project_space.global_transform.basis.inverse()
-		_extrude_initial_basis[controller_id] = ps_inv_basis * controller.global_transform.basis
+		var first_entry := new_points[0]
+		var first_sn := first_entry["spline"] as SplineNode
+		var first_symmetry_index := _entry_symmetry_index(first_entry)
+		var first_basis: Basis = first_sn.get_symmetry_transforms()[first_symmetry_index]
+		_extrude_initial_pos[controller_id] = first_sn.symmetry_to_base(ctrl_visible_pos, first_symmetry_index)
+		_extrude_initial_basis[controller_id] = _controller_basis_in_base(controller, first_basis)
 
 	if controller_id == CONTROLLER_ID_LEFT:
 		_left_extruding = new_points
@@ -594,14 +641,13 @@ func _begin_extrude_or_insert(controller_id: int, hover_set: Array[Dictionary]) 
 func _update_extrude(controller_id: int) -> void:
 	var controller := left_controller if controller_id == CONTROLLER_ID_LEFT else right_controller
 	var extruding := _left_extruding if controller_id == CONTROLLER_ID_LEFT else _right_extruding
-	var ctrl_local_pos := project_space.global_transform.affine_inverse() * controller.global_position
+	var ctrl_visible_pos := project_space.global_transform.affine_inverse() * controller.global_position
 
 	if not _extrude_multi[controller_id]:
-		# Single point: snap directly to controller position
-		var snapped_pos := snap_pos(ctrl_local_pos)
 		for entry in extruding:
 			var sn := entry["spline"] as SplineNode
 			var idx: int = entry["index"]
+			var snapped_pos := snap_pos(_entry_to_base_position(entry, ctrl_visible_pos))
 			sn.data.points[idx] = snapped_pos
 			sn.mark_dirty()
 	else:
@@ -609,10 +655,15 @@ func _update_extrude(controller_id: int) -> void:
 		var initial_pos := _extrude_initial_pos[controller_id]
 		var initial_basis := _extrude_initial_basis[controller_id]
 		var ext_scale := _extrude_scale[controller_id]
-		var translate_delta := ctrl_local_pos - initial_pos
 
-		var ps_inv_basis := project_space.global_transform.basis.inverse()
-		var current_local_basis := ps_inv_basis * controller.global_transform.basis
+		var first_entry := extruding[0]
+		var first_sn := first_entry["spline"] as SplineNode
+		var first_symmetry_index := _entry_symmetry_index(first_entry)
+		var first_basis: Basis = first_sn.get_symmetry_transforms()[first_symmetry_index]
+		var ctrl_base_pos := first_sn.symmetry_to_base(ctrl_visible_pos, first_symmetry_index)
+		var translate_delta := ctrl_base_pos - initial_pos
+
+		var current_local_basis := _controller_basis_in_base(controller, first_basis)
 		var rotation_delta := current_local_basis * initial_basis.inverse()
 
 		for entry in extruding:
@@ -632,7 +683,7 @@ func _on_delete_pressed(controller_id: int) -> void:
 	if not left_action_area.visible:
 		return
 
-	var hover_set := _get_hover_set(controller_id)
+	var hover_set := _canonical_hover_set(_get_hover_set(controller_id))
 	if hover_set.is_empty():
 		return
 
@@ -695,7 +746,7 @@ func _update_joystick_edit(controller_id: int, delta: float) -> void:
 		_end_joystick_edit_session(controller_id)
 		return
 
-	var hover_set := _get_hover_set(controller_id)
+	var hover_set := _canonical_hover_set(_get_hover_set(controller_id))
 	if hover_set.is_empty():
 		_end_joystick_edit_session(controller_id)
 		return
@@ -938,6 +989,124 @@ func restore_snap_settings(
 	snap_settings_changed.emit()
 
 
+# --- Symmetry setters (called by in-project panel; persist via autosave) ---
+
+func set_mirror_axis_enabled(axis: int, on: bool) -> void:
+	if axis == 0:
+		mirror_x_enabled = on
+	elif axis == 1:
+		mirror_y_enabled = on
+	elif axis == 2:
+		mirror_z_enabled = on
+	_rebuild_symmetry_transforms()
+	project_manager.autosave()
+
+
+func set_radial_enabled(on: bool) -> void:
+	radial_enabled = on
+	_rebuild_symmetry_transforms()
+	project_manager.autosave()
+
+
+func set_radial_axis(axis: int) -> void:
+	radial_axis = clampi(axis, 0, 2)
+	_rebuild_symmetry_transforms()
+	project_manager.autosave()
+
+
+func set_radial_copies(copies: int) -> void:
+	radial_copies = clampi(copies, 2, 32)
+	_rebuild_symmetry_transforms()
+	project_manager.autosave()
+
+
+func restore_symmetry_settings(
+	mirror_x: bool, mirror_y: bool, mirror_z: bool,
+	radial_on: bool, radial_axis_value: int, radial_copy_count: int,
+) -> void:
+	mirror_x_enabled = mirror_x
+	mirror_y_enabled = mirror_y
+	mirror_z_enabled = mirror_z
+	radial_enabled = radial_on
+	radial_axis = clampi(radial_axis_value, 0, 2)
+	radial_copies = clampi(radial_copy_count, 2, 32)
+	_rebuild_symmetry_transforms(false)
+	symmetry_settings_changed.emit()
+
+
+func _rebuild_symmetry_transforms(emit_signal: bool = true) -> void:
+	_symmetry_transforms = _make_symmetry_transforms()
+	for child in project_space.get_children():
+		if child is SplineNode:
+			(child as SplineNode).set_symmetry_transforms(_symmetry_transforms)
+	if emit_signal:
+		symmetry_settings_changed.emit()
+
+
+func _make_symmetry_transforms() -> Array[Basis]:
+	var mirror_transforms: Array[Basis] = [Basis.IDENTITY]
+	var mirror_axes := [
+		mirror_x_enabled,
+		mirror_y_enabled,
+		mirror_z_enabled,
+	]
+	for axis in 3:
+		if not mirror_axes[axis]:
+			continue
+		var next_transforms := mirror_transforms.duplicate()
+		var mirror_basis := _mirror_basis(axis)
+		for xf in mirror_transforms:
+			next_transforms.append(mirror_basis * xf)
+		mirror_transforms = next_transforms
+
+	var radial_transforms: Array[Basis] = [Basis.IDENTITY]
+	if radial_enabled:
+		radial_transforms.clear()
+		for i in radial_copies:
+			var angle := TAU * float(i) / float(radial_copies)
+			radial_transforms.append(_radial_basis(radial_axis, angle))
+
+	var result: Array[Basis] = []
+	var keys := {}
+	for radial_xf in radial_transforms:
+		for mirror_xf in mirror_transforms:
+			var xf := radial_xf * mirror_xf
+			var key := _basis_key(xf)
+			if keys.has(key):
+				continue
+			keys[key] = true
+			result.append(xf)
+	return result
+
+
+func _mirror_basis(axis: int) -> Basis:
+	if axis == 0:
+		return Basis(Vector3(-1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, 1))
+	if axis == 1:
+		return Basis(Vector3(1, 0, 0), Vector3(0, -1, 0), Vector3(0, 0, 1))
+	return Basis(Vector3(1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, -1))
+
+
+func _radial_basis(axis: int, angle: float) -> Basis:
+	if axis == 0:
+		return Basis(Vector3.RIGHT, angle)
+	if axis == 1:
+		return Basis(Vector3.UP, angle)
+	return Basis(Vector3(0, 0, 1), angle)
+
+
+func _basis_key(basis: Basis) -> String:
+	var values := [
+		basis.x.x, basis.x.y, basis.x.z,
+		basis.y.x, basis.y.y, basis.y.z,
+		basis.z.x, basis.z.y, basis.z.z,
+	]
+	var parts: Array[String] = []
+	for value in values:
+		parts.append(str(round(value * 100000.0) / 100000.0))
+	return ",".join(parts)
+
+
 ## Select a spline (from panel list click or from interaction).
 func select_spline(spline: SplineNode) -> void:
 	if selected_spline == spline:
@@ -959,7 +1128,7 @@ func _on_button_pressed(button_name: String, controller_id: int) -> void:
 	elif button_name == "grip_click":
 		_on_grip_pressed(controller_id)
 	elif button_name == "ax_button":
-		var hover_set := _get_hover_set(controller_id)
+		var hover_set := _canonical_hover_set(_get_hover_set(controller_id))
 		if not hover_set.is_empty() and left_action_area.visible:
 			_on_delete_pressed(controller_id)
 		elif not is_input_active():
@@ -1040,7 +1209,7 @@ func _on_trigger_released(controller_id: int) -> void:
 		var touched_splines := {}
 		for entry in extruding:
 			var sn := entry["spline"] as SplineNode
-			sn.set_point_editing(entry["index"], false)
+			sn.set_point_editing(entry["index"], false, _entry_symmetry_index(entry))
 			touched_splines[sn] = true
 		_merge_duplicates_on(touched_splines.keys())
 		if controller_id == CONTROLLER_ID_LEFT:
@@ -1066,16 +1235,19 @@ func _on_grip_pressed(controller_id: int) -> void:
 	# Suppress point-grip while a virtual keyboard is open.
 	if app_manager.is_keyboard_active():
 		return
-	var hover_set := _get_hover_set(controller_id)
+	var hover_set := _canonical_hover_set(_get_hover_set(controller_id))
 	if hover_set.is_empty():
 		return  # No hovered points — let navigation.gd handle the grip
 
 	var controller := left_controller if controller_id == CONTROLLER_ID_LEFT else right_controller
 
 	# Snapshot controller position and orientation in project-local space
-	var grip_local_pos := project_space.global_transform.affine_inverse() * controller.global_position
-	var ps_inv_basis := project_space.global_transform.basis.inverse()
-	var grip_local_basis := ps_inv_basis * controller.global_transform.basis
+	var grip_visible_pos := project_space.global_transform.affine_inverse() * controller.global_position
+	var first_sn := hover_set[0]["spline"] as SplineNode
+	var first_symmetry_index := _entry_symmetry_index(hover_set[0])
+	var first_basis: Basis = first_sn.get_symmetry_transforms()[first_symmetry_index]
+	var grip_local_pos := first_sn.symmetry_to_base(grip_visible_pos, first_symmetry_index)
+	var grip_local_basis := _controller_basis_in_base(controller, first_basis)
 
 	# Snapshot all hovered points
 	var grabbed: Array[Dictionary] = []
@@ -1086,8 +1258,9 @@ func _on_grip_pressed(controller_id: int) -> void:
 			"spline": spline_node,
 			"index": idx,
 			"initial_pos": spline_node.data.points[idx],
+			"symmetry_index": _entry_symmetry_index(entry),
 		})
-		spline_node.set_point_editing(idx, true)
+		spline_node.set_point_editing(idx, true, _entry_symmetry_index(entry))
 
 	if controller_id == CONTROLLER_ID_LEFT:
 		_left_grip_translating = true
@@ -1113,7 +1286,7 @@ func _on_grip_released(controller_id: int) -> void:
 	var touched_splines := {}
 	for entry in grabbed:
 		var sn := entry["spline"] as SplineNode
-		sn.set_point_editing(entry["index"], false)
+		sn.set_point_editing(entry["index"], false, _entry_symmetry_index(entry))
 		touched_splines[sn] = true
 	_merge_duplicates_on(touched_splines.keys())
 
@@ -1138,11 +1311,17 @@ func _update_grip_transform(controller_id: int) -> void:
 	var grip_scale    := _left_grip_scale         if controller_id == CONTROLLER_ID_LEFT else _right_grip_scale
 	var grabbed       := _left_grip_grabbed       if controller_id == CONTROLLER_ID_LEFT else _right_grip_grabbed
 
-	var current_local_pos := project_space.global_transform.affine_inverse() * controller.global_position
+	if grabbed.is_empty():
+		return
+	var current_visible_pos := project_space.global_transform.affine_inverse() * controller.global_position
+	var first_entry := grabbed[0]
+	var first_sn := first_entry["spline"] as SplineNode
+	var first_symmetry_index := _entry_symmetry_index(first_entry)
+	var first_basis: Basis = first_sn.get_symmetry_transforms()[first_symmetry_index]
+	var current_local_pos := first_sn.symmetry_to_base(current_visible_pos, first_symmetry_index)
 	var translate_delta := current_local_pos - initial_pos
 
-	var ps_inv_basis := project_space.global_transform.basis.inverse()
-	var current_local_basis := ps_inv_basis * controller.global_transform.basis
+	var current_local_basis := _controller_basis_in_base(controller, first_basis)
 	var rotation_delta := current_local_basis * initial_basis.inverse()
 
 	for entry in grabbed:
