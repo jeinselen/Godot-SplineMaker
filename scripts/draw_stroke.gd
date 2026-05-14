@@ -63,7 +63,7 @@ func begin(start_pos: Vector3, start_size: float, parent: Node3D) -> void:
 
 	# Tip mesh for the leading edge
 	_tip_material = StandardMaterial3D.new()
-	_tip_material.albedo_color = Color(0.7, 0.7, 0.7)
+	_tip_material.albedo_color = SplineNode.COLOR_NEUTRAL
 	_tip_mesh_instance = MeshInstance3D.new()
 	_tip_mesh_instance.name = "DrawTip"
 	_tip_mesh_instance.material_override = _tip_material

@@ -104,6 +104,11 @@ var _right_edit_accum: Dictionary = {}
 var _left_editing_active: bool = false
 var _right_editing_active: bool = false
 
+# Tracks the preview mesh settings that have already paid their cold-start
+# allocation/commit costs. The first real stroke should never do this work.
+var _warmed_draw_pipeline_keys: Dictionary = {}
+var _draw_pipeline_warmup_parent: Node3D = null
+
 const GRIP_SCALE_SPEED := 1.5
 const GRIP_SCALE_MIN := 0.05
 const GRIP_SCALE_MAX := 20.0
@@ -141,6 +146,8 @@ func _ready() -> void:
 	right_controller.button_released.connect(_on_button_released.bind(CONTROLLER_ID_RIGHT))
 	right_controller.input_float_changed.connect(_on_float_changed.bind(CONTROLLER_ID_RIGHT))
 	right_controller.input_vector2_changed.connect(_on_vector2_changed.bind(CONTROLLER_ID_RIGHT))
+
+	call_deferred("warm_up_drawing_pipeline")
 
 
 func _process(delta: float) -> void:
@@ -241,6 +248,71 @@ func _process(delta: float) -> void:
 		left_controller.trigger_haptic_pulse("haptic", 0.0, HAPTIC_BUZZ_AMPLITUDE, HAPTIC_BUZZ_DURATION, 0.0)
 	if _right_grip_translating:
 		right_controller.trigger_haptic_pulse("haptic", 0.0, HAPTIC_BUZZ_AMPLITUDE, HAPTIC_BUZZ_DURATION, 0.0)
+
+
+## Build and briefly attach the same resources used by the first live stroke.
+## This shifts GDScript class setup, material creation, SurfaceTool commit, and
+## ArrayMesh assignment out of the first controller-draw frame.
+func warm_up_drawing_pipeline(mesh_edge_count: int = -1, spline_resolution: int = -1) -> void:
+	if mesh_edge_count <= 0:
+		mesh_edge_count = app_manager.settings.preview_mesh_resolution
+	if spline_resolution <= 0:
+		spline_resolution = app_manager.settings.preview_spline_resolution
+
+	var warmup_key := "%d:%d" % [mesh_edge_count, spline_resolution]
+	if _warmed_draw_pipeline_keys.has(warmup_key):
+		return
+	_warmed_draw_pipeline_keys[warmup_key] = true
+
+	if _draw_pipeline_warmup_parent and is_instance_valid(_draw_pipeline_warmup_parent):
+		_draw_pipeline_warmup_parent.queue_free()
+
+	var parent := Node3D.new()
+	parent.name = "DrawingPipelineWarmup"
+	parent.visible = false
+	add_child(parent)
+	_draw_pipeline_warmup_parent = parent
+
+	var warm_data := SplineData.new()
+	warm_data.order_u = 3
+	warm_data.add_point(Vector3(-0.04, 0.0, 0.0), 0.01)
+	warm_data.add_point(Vector3(0.0, 0.02, 0.0), 0.012)
+	warm_data.add_point(Vector3(0.04, 0.0, 0.0), 0.01)
+
+	var warm_spline := SplineNode.new()
+	warm_spline.name = "WarmSpline"
+	warm_spline.mesh_edge_count = mesh_edge_count
+	warm_spline.spline_resolution = spline_resolution
+	warm_spline.set_data(warm_data)
+	parent.add_child(warm_spline)
+	warm_spline.set_active(true)
+	warm_spline.rebuild_mesh()
+	warm_spline._rebuild_control_points()
+	warm_spline.set_selected(true)
+	warm_spline.set_point_hovered(0, true, CONTROLLER_ID_LEFT)
+	warm_spline.set_point_hovered(0, false, CONTROLLER_ID_LEFT)
+	warm_spline.set_selected(false)
+
+	var tip_material := StandardMaterial3D.new()
+	tip_material.albedo_color = SplineNode.COLOR_NEUTRAL
+	var tip_mesh_instance := MeshInstance3D.new()
+	tip_mesh_instance.name = "WarmDrawTip"
+	tip_mesh_instance.material_override = tip_material
+	parent.add_child(tip_mesh_instance)
+
+	var tip_points := PackedVector3Array([
+		Vector3.ZERO,
+		Vector3(0.025, 0.0, 0.0),
+		Vector3(0.05, 0.01, 0.0),
+	])
+	var tip_sizes := PackedFloat32Array([0.01, 0.011, 0.012])
+	tip_mesh_instance.mesh = TubeMesh.generate(tip_points, tip_sizes, mesh_edge_count, false)
+
+	await get_tree().process_frame
+	if is_instance_valid(parent):
+		parent.queue_free()
+	if _draw_pipeline_warmup_parent == parent:
+		_draw_pipeline_warmup_parent = null
 
 
 # --- Hover detection ---

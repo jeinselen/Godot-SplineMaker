@@ -47,6 +47,7 @@ func open_project(dir_name: String) -> void:
 	_destroy_active_panel()
 	project_manager.open_project(dir_name)
 	_apply_preview_settings()
+	interaction.warm_up_drawing_pipeline(settings.preview_mesh_resolution, settings.preview_spline_resolution)
 	project_space.visible = true
 	project_space.transform = Transform3D(Basis.IDENTITY, DEFAULT_PROJECT_OFFSET)
 	state = AppState.IN_PROJECT
@@ -60,6 +61,7 @@ func open_project(dir_name: String) -> void:
 func create_and_open_project() -> void:
 	_destroy_active_panel()
 	project_manager.create_new_project()
+	interaction.warm_up_drawing_pipeline(settings.preview_mesh_resolution, settings.preview_spline_resolution)
 	project_space.visible = true
 	project_space.transform = Transform3D(Basis.IDENTITY, DEFAULT_PROJECT_OFFSET)
 	state = AppState.IN_PROJECT
@@ -210,6 +212,7 @@ func apply_settings() -> void:
 	project_manager.export_directory = settings.export_directory
 	project_manager.preview_mesh_resolution = settings.preview_mesh_resolution
 	project_manager.preview_spline_resolution = settings.preview_spline_resolution
+	interaction.warm_up_drawing_pipeline(settings.preview_mesh_resolution, settings.preview_spline_resolution)
 	_apply_preview_settings()
 
 
