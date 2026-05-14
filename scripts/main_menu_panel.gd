@@ -175,6 +175,8 @@ func _build_settings_view() -> void:
 	_export_path_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_export_path_edit.text = _app_manager.settings.export_directory
 	_export_path_edit.text_submitted.connect(_on_export_path_submitted)
+	_export_path_edit.focus_entered.connect(_on_export_path_focus_entered)
+	_export_path_edit.focus_exited.connect(_on_input_focus_exited)
 	export_row.add_child(_export_path_edit)
 	var edit_btn := Button.new()
 	edit_btn.text = "Edit"
@@ -197,6 +199,7 @@ func _build_settings_view() -> void:
 	_undo_steps_spin.max_value = 100
 	_undo_steps_spin.value = _app_manager.settings.max_undo_steps
 	_undo_steps_spin.add_theme_font_size_override("font_size", 18)
+	_wire_spinbox_keyboard(_undo_steps_spin)
 	undo_row.add_child(_undo_steps_spin)
 
 	# Autosave Delay
@@ -216,6 +219,7 @@ func _build_settings_view() -> void:
 	_autosave_delay_spin.value = _app_manager.settings.autosave_delay
 	_autosave_delay_spin.suffix = "s"
 	_autosave_delay_spin.add_theme_font_size_override("font_size", 18)
+	_wire_spinbox_keyboard(_autosave_delay_spin)
 	delay_row.add_child(_autosave_delay_spin)
 
 	# Panel Side
@@ -249,6 +253,7 @@ func _build_settings_view() -> void:
 	_mesh_res_spin.max_value = 32
 	_mesh_res_spin.value = _app_manager.settings.preview_mesh_resolution
 	_mesh_res_spin.add_theme_font_size_override("font_size", 18)
+	_wire_spinbox_keyboard(_mesh_res_spin)
 	mesh_row.add_child(_mesh_res_spin)
 
 	# Spline Resolution
@@ -266,6 +271,7 @@ func _build_settings_view() -> void:
 	_spline_res_spin.max_value = 32
 	_spline_res_spin.value = _app_manager.settings.preview_spline_resolution
 	_spline_res_spin.add_theme_font_size_override("font_size", 18)
+	_wire_spinbox_keyboard(_spline_res_spin)
 	spline_row.add_child(_spline_res_spin)
 
 	# Back button
@@ -431,18 +437,13 @@ func _on_project_rename_pressed(dir_name: String, row: HBoxContainer) -> void:
 	row.add_child(_rename_edit)
 	_rename_edit.grab_focus()
 
-	var cancel_btn := Button.new()
-	cancel_btn.text = "Cancel"
-	cancel_btn.add_theme_font_size_override("font_size", 16)
-	cancel_btn.pressed.connect(func() -> void: _refresh_project_list())
-	row.add_child(cancel_btn)
-
-	# Open virtual keyboard on Android/Quest 3 (deferred to let focus settle)
-	_show_virtual_keyboard(_rename_edit.text)
+	var kb: XRKeyboard = _app_manager.request_keyboard(_rename_edit, "qwerty", self)
+	if kb:
+		kb.cancelled.connect(_refresh_project_list)
 
 
 func _on_rename_submitted(new_name: String, dir_name: String) -> void:
-	DisplayServer.virtual_keyboard_hide()
+	_app_manager.dismiss_keyboard()
 	if not new_name.is_empty() and new_name != dir_name:
 		_project_manager.rename_project(dir_name, new_name)
 	_refresh_project_list()
@@ -571,15 +572,42 @@ func _on_import_file_pressed(json_path: String) -> void:
 
 func _on_export_path_edit_pressed() -> void:
 	_export_path_edit.grab_focus()
-	_show_virtual_keyboard(_export_path_edit.text)
+	_app_manager.request_keyboard(_export_path_edit, "qwerty", self)
 
 
 func _on_export_path_submitted(new_text: String) -> void:
-	DisplayServer.virtual_keyboard_hide()
+	_app_manager.dismiss_keyboard()
 	_export_path_edit.text = new_text
 
 
-## Show virtual keyboard after a frame delay so LineEdit focus settles first.
-func _show_virtual_keyboard(text: String) -> void:
+func _on_export_path_focus_entered() -> void:
+	_app_manager.request_keyboard(_export_path_edit, "qwerty", self)
+
+
+## Wire a SpinBox's internal LineEdit so focusing it spawns the numpad.
+func _wire_spinbox_keyboard(spin: SpinBox) -> void:
+	var le := spin.get_line_edit()
+	le.focus_entered.connect(_on_spin_focus_entered.bind(spin))
+	le.focus_exited.connect(_on_input_focus_exited)
+
+
+func _on_spin_focus_entered(spin: SpinBox) -> void:
+	_app_manager.request_keyboard(spin, "numpad", self)
+
+
+## Dismiss the keyboard one frame later if no other input grabbed focus
+## (which would have already replaced the keyboard via request_keyboard).
+func _on_input_focus_exited() -> void:
 	await get_tree().process_frame
-	DisplayServer.virtual_keyboard_show(text)
+	if not _app_manager:
+		return
+	var kb: XRKeyboard = _app_manager._active_keyboard
+	if not kb or not is_instance_valid(kb):
+		return
+	var target_le: LineEdit = null
+	if kb.target_control is LineEdit:
+		target_le = kb.target_control as LineEdit
+	elif kb.target_control is SpinBox:
+		target_le = (kb.target_control as SpinBox).get_line_edit()
+	if target_le and not target_le.has_focus():
+		_app_manager.dismiss_keyboard()

@@ -15,6 +15,7 @@ var state: AppState = AppState.MAIN_MENU
 
 var settings := SettingsData.new()
 var active_panel: XRPanel = null
+var _active_keyboard: XRKeyboard = null
 
 
 func _ready() -> void:
@@ -112,9 +113,47 @@ func _create_in_project_panel() -> void:
 
 
 func _destroy_active_panel() -> void:
+	dismiss_keyboard()
 	if active_panel and is_instance_valid(active_panel):
 		active_panel.queue_free()
 		active_panel = null
+
+
+## Spawn a virtual keyboard variant for the given input control, positioned
+## just below the panel that owns it. Returns the spawned keyboard so callers
+## can hook its cancelled/dismissed signals.
+func request_keyboard(target: Control, kind: String, anchor_panel: XRPanel) -> XRKeyboard:
+	# Idempotent: if a keyboard is already open for this same target, return it.
+	if _active_keyboard and is_instance_valid(_active_keyboard) and _active_keyboard.target_control == target:
+		return _active_keyboard
+	dismiss_keyboard()
+
+	var kb: XRKeyboard
+	if kind == "numpad":
+		kb = XRKeyboardNumpad.create_panel(target)
+	else:
+		kb = XRKeyboardQWERTY.create_panel(target)
+
+	add_child(kb)
+	kb.setup(left_controller, right_controller)
+	kb.dismissed.connect(dismiss_keyboard)
+
+	# Position below the anchor panel in its local frame so it stays aligned.
+	var anchor_t := anchor_panel.global_transform
+	var anchor_h := anchor_panel.panel_size.y * anchor_panel.pixel_size
+	var kb_h := kb.panel_size.y * kb.pixel_size
+	var down_offset := -(anchor_h * 0.5 + kb_h * 0.5 + 0.02)
+	var local_offset := Vector3(0.0, down_offset, 0.0)
+	kb.global_transform = Transform3D(anchor_t.basis, anchor_t.origin + anchor_t.basis * local_offset)
+
+	_active_keyboard = kb
+	return kb
+
+
+func dismiss_keyboard() -> void:
+	if _active_keyboard and is_instance_valid(_active_keyboard):
+		_active_keyboard.queue_free()
+	_active_keyboard = null
 
 
 ## Reposition the active panel in front of the camera.

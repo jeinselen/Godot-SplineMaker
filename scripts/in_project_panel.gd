@@ -184,6 +184,9 @@ func _build_ui() -> void:
 	_order_spin.value = 4
 	_order_spin.add_theme_font_size_override("font_size", 18)
 	_order_spin.value_changed.connect(_on_order_changed)
+	var order_le := _order_spin.get_line_edit()
+	order_le.focus_entered.connect(_on_order_focus_entered)
+	order_le.focus_exited.connect(_on_order_focus_exited)
 	order_row.add_child(_order_spin)
 
 	# Cyclic
@@ -357,6 +360,19 @@ func _on_order_changed(value: float) -> void:
 		spline.mark_dirty()
 		_project_manager.autosave()
 
+
+
+func _on_order_focus_entered() -> void:
+	_app_manager.request_keyboard(_order_spin, "numpad", self)
+
+
+func _on_order_focus_exited() -> void:
+	await get_tree().process_frame
+	var kb: XRKeyboard = _app_manager._active_keyboard
+	if not kb or not is_instance_valid(kb):
+		return
+	if kb.target_control == _order_spin and not _order_spin.get_line_edit().has_focus():
+		_app_manager.dismiss_keyboard()
 
 
 func _on_cyclic_toggled(toggled_on: bool) -> void:

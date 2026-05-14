@@ -52,9 +52,6 @@ var _grab_controller_id: int = -1
 var _grab_initial_ctrl_transform: Transform3D
 var _grab_initial_panel_transform: Transform3D
 
-# Controller exclusivity — first pointer locks out the second
-var _exclusive_controller: int = -1
-
 # Edge overlap state (per controller)
 var _edge_overlap: Array[bool] = [false, false]
 var _was_edge_overlap: Array[bool] = [false, false]
@@ -133,23 +130,9 @@ func _process(_delta: float) -> void:
 	if _grabbed:
 		_update_grab()
 
-	# Release exclusivity if the exclusive controller is no longer pointing or grabbing
-	if _exclusive_controller >= 0:
-		if not _pointing[_exclusive_controller] and not (_grabbed and _grab_controller_id == _exclusive_controller):
-			_exclusive_controller = -1
-
-	# Raycast both controllers
+	# Raycast both controllers — both are always live, no exclusivity
 	_update_raycast(0, _left_controller)
 	_update_raycast(1, _right_controller)
-
-	# Assign exclusivity — first pointer wins
-	if _exclusive_controller < 0:
-		if _pointing[0] and not _pointing[1]:
-			_exclusive_controller = 0
-		elif _pointing[1] and not _pointing[0]:
-			_exclusive_controller = 1
-		elif _pointing[0] and _pointing[1]:
-			_exclusive_controller = 0  # tie-break: left wins
 
 	# Update edge overlap detection
 	_update_edge_overlap(0, _left_controller)
@@ -333,12 +316,13 @@ func _update_raycast(controller_id: int, controller: XRController3D) -> void:
 	var v := (-hit_local.y + half_h) / (half_h * 2.0)
 	_hit_uv[controller_id] = Vector2(u, v)
 
-	# Suppress input for non-exclusive controller
-	if _exclusive_controller >= 0 and _exclusive_controller != controller_id:
-		_set_pointing(controller_id, false)
-		return
-
 	_set_pointing(controller_id, true)
+
+	# If the other controller is mid-press, don't push motion — moving the
+	# SubViewport's cursor away from the pressed button would cancel its click.
+	var other_id := 1 - controller_id
+	if _mouse_pressed[other_id]:
+		return
 
 	# Inject mouse motion event
 	var vp_pos := Vector2(u * panel_size.x, v * panel_size.y)
@@ -369,8 +353,6 @@ func _on_trigger_for_click(button_name: String, controller_id: int) -> void:
 	if button_name != "trigger_click":
 		return
 	if _blocked[controller_id]:
-		return
-	if _exclusive_controller >= 0 and _exclusive_controller != controller_id:
 		return
 	if not _pointing[controller_id]:
 		return
