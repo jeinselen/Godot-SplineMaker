@@ -1,0 +1,390 @@
+[gd_scene format=3 uid="uid://cq4vqjy6xeiyy"]
+
+[node name="QwertyKeyboardUI" type="MarginContainer" unique_id=1309483768]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 6
+
+[node name="Rows" type="VBoxContainer" parent="." unique_id=1985224012]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="DigitsRow" type="HBoxContainer" parent="Rows" unique_id=233943545]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="1" type="Button" parent="Rows/DigitsRow" unique_id=1434961941]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "1"
+
+[node name="2" type="Button" parent="Rows/DigitsRow" unique_id=709619302]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "2"
+
+[node name="3" type="Button" parent="Rows/DigitsRow" unique_id=511724516]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "3"
+
+[node name="4" type="Button" parent="Rows/DigitsRow" unique_id=348535116]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "4"
+
+[node name="5" type="Button" parent="Rows/DigitsRow" unique_id=1944752323]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "5"
+
+[node name="6" type="Button" parent="Rows/DigitsRow" unique_id=969617103]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "6"
+
+[node name="7" type="Button" parent="Rows/DigitsRow" unique_id=363107521]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "7"
+
+[node name="8" type="Button" parent="Rows/DigitsRow" unique_id=1310171167]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "8"
+
+[node name="9" type="Button" parent="Rows/DigitsRow" unique_id=583400758]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "9"
+
+[node name="0" type="Button" parent="Rows/DigitsRow" unique_id=2026861442]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "0"
+
+[node name="BackspaceButton" type="Button" parent="Rows/DigitsRow" unique_id=1146276447]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "Bksp"
+
+[node name="TopRow" type="HBoxContainer" parent="Rows" unique_id=2020454059]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="q" type="Button" parent="Rows/TopRow" unique_id=1344096327]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "q"
+
+[node name="w" type="Button" parent="Rows/TopRow" unique_id=76777654]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "w"
+
+[node name="e" type="Button" parent="Rows/TopRow" unique_id=1215523631]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "e"
+
+[node name="r" type="Button" parent="Rows/TopRow" unique_id=358536831]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "r"
+
+[node name="t" type="Button" parent="Rows/TopRow" unique_id=1633768049]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "t"
+
+[node name="y" type="Button" parent="Rows/TopRow" unique_id=969073120]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "y"
+
+[node name="u" type="Button" parent="Rows/TopRow" unique_id=1596076236]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "u"
+
+[node name="i" type="Button" parent="Rows/TopRow" unique_id=1581858479]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "i"
+
+[node name="o" type="Button" parent="Rows/TopRow" unique_id=1730008216]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "o"
+
+[node name="p" type="Button" parent="Rows/TopRow" unique_id=1000875909]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "p"
+
+[node name="MidRow" type="HBoxContainer" parent="Rows" unique_id=1660162523]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="a" type="Button" parent="Rows/MidRow" unique_id=447801108]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "a"
+
+[node name="s" type="Button" parent="Rows/MidRow" unique_id=611129178]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "s"
+
+[node name="d" type="Button" parent="Rows/MidRow" unique_id=992963754]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "d"
+
+[node name="f" type="Button" parent="Rows/MidRow" unique_id=1493615488]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "f"
+
+[node name="g" type="Button" parent="Rows/MidRow" unique_id=1038951652]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "g"
+
+[node name="h" type="Button" parent="Rows/MidRow" unique_id=1618572229]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "h"
+
+[node name="j" type="Button" parent="Rows/MidRow" unique_id=1340345964]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "j"
+
+[node name="k" type="Button" parent="Rows/MidRow" unique_id=872833901]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "k"
+
+[node name="l" type="Button" parent="Rows/MidRow" unique_id=1206908742]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "l"
+
+[node name="BottomRow" type="HBoxContainer" parent="Rows" unique_id=526620007]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="z" type="Button" parent="Rows/BottomRow" unique_id=1821140288]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "z"
+
+[node name="x" type="Button" parent="Rows/BottomRow" unique_id=1698051643]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "x"
+
+[node name="c" type="Button" parent="Rows/BottomRow" unique_id=1012606380]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "c"
+
+[node name="v" type="Button" parent="Rows/BottomRow" unique_id=323923824]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "v"
+
+[node name="b" type="Button" parent="Rows/BottomRow" unique_id=1517967688]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "b"
+
+[node name="n" type="Button" parent="Rows/BottomRow" unique_id=267033117]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "n"
+
+[node name="m" type="Button" parent="Rows/BottomRow" unique_id=466213543]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "m"
+
+[node name="Dash" type="Button" parent="Rows/BottomRow" unique_id=163955651]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "-"
+
+[node name="Underscore" type="Button" parent="Rows/BottomRow" unique_id=925117823]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "_"
+
+[node name="Period" type="Button" parent="Rows/BottomRow" unique_id=446677190]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "."
+
+[node name="ControlRow" type="HBoxContainer" parent="Rows" unique_id=379684019]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="ShiftButton" type="Button" parent="Rows/ControlRow" unique_id=409575866]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+toggle_mode = true
+text = "Shift"
+
+[node name="SpaceButton" type="Button" parent="Rows/ControlRow" unique_id=1989587764]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 3.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "Space"
+
+[node name="CancelButton" type="Button" parent="Rows/ControlRow" unique_id=1552201964]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "Cancel"
+
+[node name="EnterButton" type="Button" parent="Rows/ControlRow" unique_id=1003665919]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "Enter"

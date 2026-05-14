@@ -14,6 +14,8 @@ var _shift: bool = false
 var _shift_btn: Button = null
 var _letter_buttons: Array[Button] = []
 
+const KEYBOARD_UI_SCENE := preload("res://scenes/ui/xr_keyboard_qwerty_ui.tscn")
+
 
 static func create_panel(target: Control) -> XRKeyboardQWERTY:
 	var kb := XRKeyboardQWERTY.new()
@@ -24,66 +26,53 @@ static func create_panel(target: Control) -> XRKeyboardQWERTY:
 
 
 func _build_keys() -> void:
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 8)
-	margin.add_theme_constant_override("margin_right", 8)
-	margin.add_theme_constant_override("margin_top", 6)
-	margin.add_theme_constant_override("margin_bottom", 6)
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_layout_root().add_child(margin)
+	var ui := KEYBOARD_UI_SCENE.instantiate() as Control
+	_layout_root().add_child(ui)
 
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 4)
-	margin.add_child(vbox)
+	_connect_literal_row(ui.find_child("DigitsRow", true, false) as HBoxContainer)
+	_connect_letter_row(ui.find_child("TopRow", true, false) as HBoxContainer)
+	_connect_letter_row(ui.find_child("MidRow", true, false) as HBoxContainer)
 
-	_add_letter_row(vbox, ROW_DIGITS, false)
-	_add_letter_row(vbox, ROW_TOP, true)
-	_add_letter_row(vbox, ROW_MID, true)
+	var bottom_row := ui.find_child("BottomRow", true, false) as HBoxContainer
+	for btn in bottom_row.get_children():
+		var key := btn as Button
+		if not key:
+			continue
+		if key.text in ROW_SYMS:
+			key.pressed.connect(_on_literal_pressed.bind(key.text))
+		else:
+			_letter_buttons.append(key)
+			key.pressed.connect(_on_letter_pressed.bind(key))
 
-	var bottom_row := HBoxContainer.new()
-	bottom_row.add_theme_constant_override("separation", 4)
-	vbox.add_child(bottom_row)
-	for ch in ROW_BOT:
-		var btn := _make_key(ch, bottom_row, true)
-		_letter_buttons.append(btn)
-		btn.pressed.connect(_on_letter_pressed.bind(btn))
-	for sym in ROW_SYMS:
-		var sbtn := _make_key(sym, bottom_row, true)
-		sbtn.pressed.connect(_on_literal_pressed.bind(sym))
-
-	var ctrl_row := HBoxContainer.new()
-	ctrl_row.add_theme_constant_override("separation", 4)
-	vbox.add_child(ctrl_row)
-
-	_shift_btn = _make_key("Shift", ctrl_row, true)
-	_shift_btn.toggle_mode = true
+	_shift_btn = ui.find_child("ShiftButton", true, false) as Button
 	_shift_btn.toggled.connect(_on_shift_toggled)
 
-	var space_btn := _make_key("Space", ctrl_row, true)
-	space_btn.size_flags_stretch_ratio = 3.0
+	var space_btn := ui.find_child("SpaceButton", true, false) as Button
 	space_btn.pressed.connect(_on_literal_pressed.bind(" "))
 
-	var bksp_btn := _make_key("Bksp", ctrl_row, true)
+	var bksp_btn := ui.find_child("BackspaceButton", true, false) as Button
 	bksp_btn.pressed.connect(_backspace)
 
-	var enter_btn := _make_key("Enter", ctrl_row, true)
+	var enter_btn := ui.find_child("EnterButton", true, false) as Button
 	enter_btn.pressed.connect(_commit_and_close)
 
-	var cancel_btn := _make_key("Cancel", ctrl_row, true)
+	var cancel_btn := ui.find_child("CancelButton", true, false) as Button
 	cancel_btn.pressed.connect(_cancel)
 
 
-func _add_letter_row(parent: Control, chars: Array, is_letter: bool) -> void:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 4)
-	parent.add_child(row)
-	for ch in chars:
-		var btn := _make_key(ch, row, true)
-		if is_letter:
+func _connect_literal_row(row: HBoxContainer) -> void:
+	for child in row.get_children():
+		var btn := child as Button
+		if btn:
+			btn.pressed.connect(_on_literal_pressed.bind(btn.text))
+
+
+func _connect_letter_row(row: HBoxContainer) -> void:
+	for child in row.get_children():
+		var btn := child as Button
+		if btn:
 			_letter_buttons.append(btn)
 			btn.pressed.connect(_on_letter_pressed.bind(btn))
-		else:
-			btn.pressed.connect(_on_literal_pressed.bind(ch))
 
 
 func _on_letter_pressed(btn: Button) -> void:

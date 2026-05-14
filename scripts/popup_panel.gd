@@ -11,6 +11,8 @@ var _dismiss_duration: float = DEFAULT_DISMISS_TIME
 var _label: Label
 var _close_button: Button
 
+const PANEL_UI_SCENE := preload("res://scenes/ui/popup_panel_ui.tscn")
+
 
 ## Create a popup with the given message, color, and optional auto-dismiss time.
 ## Call setup() after adding to the scene tree.
@@ -40,45 +42,15 @@ func _build_ui() -> void:
 	var text: String = get_meta("_popup_text", "")
 	var color: Color = get_meta("_popup_color", Color.WHITE)
 
-	var panel_container := PanelContainer.new()
-	panel_container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var ui := PANEL_UI_SCENE.instantiate() as Control
+	content_root.add_child(ui)
 
-	# Dark background
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.1, 0.1, 0.12, 0.9)
-	style.corner_radius_top_left = 8
-	style.corner_radius_top_right = 8
-	style.corner_radius_bottom_left = 8
-	style.corner_radius_bottom_right = 8
-	panel_container.add_theme_stylebox_override("panel", style)
-
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 16)
-	margin.add_theme_constant_override("margin_right", 16)
-	margin.add_theme_constant_override("margin_top", 12)
-	margin.add_theme_constant_override("margin_bottom", 12)
-	panel_container.add_child(margin)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
-	margin.add_child(vbox)
-
-	_label = Label.new()
+	_label = ui.find_child("PopupLabel", true, false) as Label
 	_label.text = text
-	_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_label.add_theme_color_override("font_color", color)
-	_label.add_theme_font_size_override("font_size", 22)
-	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	vbox.add_child(_label)
 
-	_close_button = Button.new()
-	_close_button.text = "Close"
-	_close_button.add_theme_font_size_override("font_size", 20)
+	_close_button = ui.find_child("CloseButton", true, false) as Button
 	_close_button.pressed.connect(_on_close_pressed)
-	vbox.add_child(_close_button)
-
-	content_root.add_child(panel_container)
 
 
 func _process(delta: float) -> void:

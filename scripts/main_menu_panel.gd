@@ -35,6 +35,8 @@ var _rename_dir: String = ""
 # Which overlay view is showing (null = main list, otherwise _settings_view or _import_view)
 var _active_overlay: VBoxContainer = null
 
+const PANEL_UI_SCENE := preload("res://scenes/ui/main_menu_panel_ui.tscn")
+
 
 static func create_panel(app_mgr) -> MainMenuPanel:
 	var panel := MainMenuPanel.new()
@@ -68,265 +70,67 @@ func reset_position(camera: XRCamera3D, _side: String = "center") -> void:
 
 
 func _build_ui() -> void:
-	var panel_container := PanelContainer.new()
-	panel_container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var ui := PANEL_UI_SCENE.instantiate() as Control
+	content_root.add_child(ui)
 
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.1, 0.1, 0.12, 0.85)
-	style.corner_radius_top_left = 6
-	style.corner_radius_top_right = 6
-	style.corner_radius_bottom_left = 6
-	style.corner_radius_bottom_right = 6
-	panel_container.add_theme_stylebox_override("panel", style)
+	_main_vbox = ui.find_child("MainVBox", true, false) as VBoxContainer
+	_project_scroll = ui.find_child("ProjectScroll", true, false) as ScrollContainer
+	_project_list_container = ui.find_child("ProjectList", true, false) as VBoxContainer
 
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 16)
-	margin.add_theme_constant_override("margin_right", 16)
-	margin.add_theme_constant_override("margin_top", 14)
-	margin.add_theme_constant_override("margin_bottom", 14)
-	panel_container.add_child(margin)
-
-	_main_vbox = VBoxContainer.new()
-	_main_vbox.add_theme_constant_override("separation", 8)
-	margin.add_child(_main_vbox)
-
-	# --- Title ---
-	var title := Label.new()
-	title.text = "SplineMaker"
-	title.add_theme_font_size_override("font_size", 28)
-	title.add_theme_color_override("font_color", Color(0.3, 0.8, 1.0))
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_main_vbox.add_child(title)
-
-	_main_vbox.add_child(HSeparator.new())
-
-	# --- Project list (scrollable) ---
-	_project_scroll = ScrollContainer.new()
-	_project_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_project_scroll.custom_minimum_size = Vector2(0, 300)
-	_main_vbox.add_child(_project_scroll)
-
-	_project_list_container = VBoxContainer.new()
-	_project_list_container.add_theme_constant_override("separation", 4)
-	_project_list_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_project_scroll.add_child(_project_list_container)
-
-	_main_vbox.add_child(HSeparator.new())
-
-	# --- Bottom buttons ---
-	var new_btn := Button.new()
-	new_btn.text = "New Project"
-	new_btn.add_theme_font_size_override("font_size", 20)
+	var new_btn := ui.find_child("NewProjectButton", true, false) as Button
 	new_btn.pressed.connect(_on_new_project_pressed)
-	_main_vbox.add_child(new_btn)
 
-	var import_btn := Button.new()
-	import_btn.text = "Import Project"
-	import_btn.add_theme_font_size_override("font_size", 20)
+	var import_btn := ui.find_child("ImportProjectButton", true, false) as Button
 	import_btn.pressed.connect(_on_import_pressed)
-	_main_vbox.add_child(import_btn)
 
-	var settings_btn := Button.new()
-	settings_btn.text = "Settings"
-	settings_btn.add_theme_font_size_override("font_size", 20)
+	var settings_btn := ui.find_child("SettingsButton", true, false) as Button
 	settings_btn.pressed.connect(_on_settings_pressed)
-	_main_vbox.add_child(settings_btn)
 
-	var quit_btn := Button.new()
-	quit_btn.text = "Quit"
-	quit_btn.add_theme_font_size_override("font_size", 20)
+	var quit_btn := ui.find_child("QuitButton", true, false) as Button
 	quit_btn.pressed.connect(_on_quit_pressed)
-	_main_vbox.add_child(quit_btn)
 
-	# --- Overlay views (hidden by default) ---
-	_build_settings_view()
-	_build_import_view()
-
-	content_root.add_child(panel_container)
-
-
-func _build_settings_view() -> void:
-	_settings_view = VBoxContainer.new()
-	_settings_view.add_theme_constant_override("separation", 8)
-	_settings_view.visible = false
-	_main_vbox.add_child(_settings_view)
-
-	var settings_title := Label.new()
-	settings_title.text = "Settings"
-	settings_title.add_theme_font_size_override("font_size", 24)
-	settings_title.add_theme_color_override("font_color", Color(0.3, 0.8, 1.0))
-	settings_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_settings_view.add_child(settings_title)
-
-	_settings_view.add_child(HSeparator.new())
-
-	# Export Path
-	var export_row := HBoxContainer.new()
-	export_row.add_theme_constant_override("separation", 6)
-	_settings_view.add_child(export_row)
-	var export_label := Label.new()
-	export_label.text = "Export Path"
-	export_label.add_theme_font_size_override("font_size", 18)
-	export_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-	export_row.add_child(export_label)
-	_export_path_edit = LineEdit.new()
-	_export_path_edit.placeholder_text = "Documents/Splines/"
-	_export_path_edit.add_theme_font_size_override("font_size", 16)
-	_export_path_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_settings_view = ui.find_child("SettingsView", true, false) as VBoxContainer
+	_export_path_edit = ui.find_child("ExportPathEdit", true, false) as LineEdit
 	_export_path_edit.text = _app_manager.settings.export_directory
 	_export_path_edit.text_submitted.connect(_on_export_path_submitted)
 	_export_path_edit.focus_entered.connect(_on_export_path_focus_entered)
 	_export_path_edit.focus_exited.connect(_on_input_focus_exited)
-	export_row.add_child(_export_path_edit)
-	var edit_btn := Button.new()
-	edit_btn.text = "Edit"
-	edit_btn.add_theme_font_size_override("font_size", 16)
+
+	var edit_btn := ui.find_child("ExportPathEditButton", true, false) as Button
 	edit_btn.pressed.connect(_on_export_path_edit_pressed)
-	export_row.add_child(edit_btn)
 
-	# Undo Steps
-	var undo_row := HBoxContainer.new()
-	undo_row.add_theme_constant_override("separation", 6)
-	_settings_view.add_child(undo_row)
-	var undo_label := Label.new()
-	undo_label.text = "Undo Steps"
-	undo_label.add_theme_font_size_override("font_size", 18)
-	undo_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-	undo_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	undo_row.add_child(undo_label)
-	_undo_steps_spin = SpinBox.new()
-	_undo_steps_spin.min_value = 1
-	_undo_steps_spin.max_value = 100
+	_undo_steps_spin = ui.find_child("UndoStepsSpin", true, false) as SpinBox
 	_undo_steps_spin.value = _app_manager.settings.max_undo_steps
-	_undo_steps_spin.add_theme_font_size_override("font_size", 18)
 	_wire_spinbox_keyboard(_undo_steps_spin)
-	undo_row.add_child(_undo_steps_spin)
 
-	# Autosave Delay
-	var delay_row := HBoxContainer.new()
-	delay_row.add_theme_constant_override("separation", 6)
-	_settings_view.add_child(delay_row)
-	var delay_label := Label.new()
-	delay_label.text = "Autosave Delay"
-	delay_label.add_theme_font_size_override("font_size", 18)
-	delay_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-	delay_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	delay_row.add_child(delay_label)
-	_autosave_delay_spin = SpinBox.new()
-	_autosave_delay_spin.min_value = 0.0
-	_autosave_delay_spin.max_value = 10.0
-	_autosave_delay_spin.step = 0.5
+	_autosave_delay_spin = ui.find_child("AutosaveDelaySpin", true, false) as SpinBox
 	_autosave_delay_spin.value = _app_manager.settings.autosave_delay
-	_autosave_delay_spin.suffix = "s"
-	_autosave_delay_spin.add_theme_font_size_override("font_size", 18)
 	_wire_spinbox_keyboard(_autosave_delay_spin)
-	delay_row.add_child(_autosave_delay_spin)
 
-	# Panel Side
-	var side_row := HBoxContainer.new()
-	side_row.add_theme_constant_override("separation", 6)
-	_settings_view.add_child(side_row)
-	var side_label := Label.new()
-	side_label.text = "Panel Side"
-	side_label.add_theme_font_size_override("font_size", 18)
-	side_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-	side_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	side_row.add_child(side_label)
-	_panel_side_btn = Button.new()
+	_panel_side_btn = ui.find_child("PanelSideButton", true, false) as Button
 	_panel_side_btn.text = _app_manager.settings.panel_side.capitalize()
-	_panel_side_btn.add_theme_font_size_override("font_size", 18)
 	_panel_side_btn.pressed.connect(_on_panel_side_toggled)
-	side_row.add_child(_panel_side_btn)
 
-	# Mesh Resolution
-	var mesh_row := HBoxContainer.new()
-	mesh_row.add_theme_constant_override("separation", 6)
-	_settings_view.add_child(mesh_row)
-	var mesh_label := Label.new()
-	mesh_label.text = "Mesh Resolution"
-	mesh_label.add_theme_font_size_override("font_size", 18)
-	mesh_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-	mesh_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	mesh_row.add_child(mesh_label)
-	_mesh_res_spin = SpinBox.new()
-	_mesh_res_spin.min_value = 3
-	_mesh_res_spin.max_value = 32
+	_mesh_res_spin = ui.find_child("MeshResolutionSpin", true, false) as SpinBox
 	_mesh_res_spin.value = _app_manager.settings.preview_mesh_resolution
-	_mesh_res_spin.add_theme_font_size_override("font_size", 18)
 	_wire_spinbox_keyboard(_mesh_res_spin)
-	mesh_row.add_child(_mesh_res_spin)
 
-	# Spline Resolution
-	var spline_row := HBoxContainer.new()
-	spline_row.add_theme_constant_override("separation", 6)
-	_settings_view.add_child(spline_row)
-	var spline_label := Label.new()
-	spline_label.text = "Spline Resolution"
-	spline_label.add_theme_font_size_override("font_size", 18)
-	spline_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-	spline_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	spline_row.add_child(spline_label)
-	_spline_res_spin = SpinBox.new()
-	_spline_res_spin.min_value = 1
-	_spline_res_spin.max_value = 32
+	_spline_res_spin = ui.find_child("SplineResolutionSpin", true, false) as SpinBox
 	_spline_res_spin.value = _app_manager.settings.preview_spline_resolution
-	_spline_res_spin.add_theme_font_size_override("font_size", 18)
 	_wire_spinbox_keyboard(_spline_res_spin)
-	spline_row.add_child(_spline_res_spin)
 
-	# Back button
-	var back_btn := Button.new()
-	back_btn.text = "Back"
-	back_btn.add_theme_font_size_override("font_size", 20)
+	var back_btn := ui.find_child("SettingsBackButton", true, false) as Button
 	back_btn.pressed.connect(_on_settings_back_pressed)
-	_settings_view.add_child(back_btn)
 
+	_import_view = ui.find_child("ImportView", true, false) as VBoxContainer
+	_import_path_label = ui.find_child("ImportPathLabel", true, false) as Label
+	_import_list_container = ui.find_child("ImportList", true, false) as VBoxContainer
 
-func _build_import_view() -> void:
-	_import_view = VBoxContainer.new()
-	_import_view.add_theme_constant_override("separation", 8)
-	_import_view.visible = false
-	_main_vbox.add_child(_import_view)
-
-	var import_title := Label.new()
-	import_title.text = "Import Project"
-	import_title.add_theme_font_size_override("font_size", 24)
-	import_title.add_theme_color_override("font_color", Color(0.3, 0.8, 1.0))
-	import_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_import_view.add_child(import_title)
-
-	_import_path_label = Label.new()
-	_import_path_label.add_theme_font_size_override("font_size", 12)
-	_import_path_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
-	_import_path_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_import_path_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_import_view.add_child(_import_path_label)
-
-	_import_view.add_child(HSeparator.new())
-
-	var import_scroll := ScrollContainer.new()
-	import_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	import_scroll.custom_minimum_size = Vector2(0, 300)
-	_import_view.add_child(import_scroll)
-
-	_import_list_container = VBoxContainer.new()
-	_import_list_container.add_theme_constant_override("separation", 4)
-	_import_list_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	import_scroll.add_child(_import_list_container)
-
-	_import_view.add_child(HSeparator.new())
-
-	var refresh_btn := Button.new()
-	refresh_btn.text = "Refresh"
-	refresh_btn.add_theme_font_size_override("font_size", 20)
+	var refresh_btn := ui.find_child("ImportRefreshButton", true, false) as Button
 	refresh_btn.pressed.connect(_refresh_import_list)
-	_import_view.add_child(refresh_btn)
 
-	var back_btn := Button.new()
-	back_btn.text = "Back"
-	back_btn.add_theme_font_size_override("font_size", 20)
-	back_btn.pressed.connect(_show_main_view)
-	_import_view.add_child(back_btn)
+	var import_back_btn := ui.find_child("ImportBackButton", true, false) as Button
+	import_back_btn.pressed.connect(_show_main_view)
 
 
 # --- Overlay view helpers ---

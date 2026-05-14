@@ -2,7 +2,7 @@ class_name TubeMesh
 
 ## Number of latitude rings for hemisphere end caps (half the mesh resolution).
 static func _cap_rings(edge_count: int) -> int:
-	return maxi(edge_count / 2, 1)
+	return maxi(edge_count >> 1, 1)
 
 
 ## Generate a tube mesh from a polyline with per-point radii.

@@ -1,0 +1,246 @@
+[gd_scene format=3 uid="uid://2mq37p8f50dq"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.1, 0.1, 0.12, 0.85)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[node name="MainMenuPanelUI" type="PanelContainer" unique_id=677461700]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="Margin" type="MarginContainer" parent="." unique_id=533795979]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 14
+
+[node name="MainVBox" type="VBoxContainer" parent="Margin" unique_id=1116181509]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="Margin/MainVBox" unique_id=452595620]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 28
+text = "SplineMaker"
+horizontal_alignment = 1
+
+[node name="SeparatorA" type="HSeparator" parent="Margin/MainVBox" unique_id=1306139890]
+layout_mode = 2
+
+[node name="ProjectScroll" type="ScrollContainer" parent="Margin/MainVBox" unique_id=1734855314]
+custom_minimum_size = Vector2(0, 300)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ProjectList" type="VBoxContainer" parent="Margin/MainVBox/ProjectScroll" unique_id=1116040921]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="SeparatorB" type="HSeparator" parent="Margin/MainVBox" unique_id=1942250175]
+layout_mode = 2
+
+[node name="ActionRow" type="HBoxContainer" parent="Margin/MainVBox" unique_id=2056067506]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="NewProjectButton" type="Button" parent="Margin/MainVBox/ActionRow" unique_id=751006342]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 20
+text = "New"
+
+[node name="ImportProjectButton" type="Button" parent="Margin/MainVBox/ActionRow" unique_id=945191524]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 20
+text = "Import"
+
+[node name="SettingsButton" type="Button" parent="Margin/MainVBox/ActionRow" unique_id=1809231363]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 20
+text = "Settings"
+
+[node name="QuitButton" type="Button" parent="Margin/MainVBox/ActionRow" unique_id=514858849]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 20
+text = "Quit"
+
+[node name="SettingsView" type="VBoxContainer" parent="Margin/MainVBox" unique_id=953014263]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SettingsTitle" type="Label" parent="Margin/MainVBox/SettingsView" unique_id=1330687336]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 24
+text = "Settings"
+horizontal_alignment = 1
+
+[node name="Separator" type="HSeparator" parent="Margin/MainVBox/SettingsView" unique_id=682375314]
+layout_mode = 2
+
+[node name="ExportPathRow" type="HBoxContainer" parent="Margin/MainVBox/SettingsView" unique_id=1095380963]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="Margin/MainVBox/SettingsView/ExportPathRow" unique_id=667296043]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+text = "Export Path"
+
+[node name="ExportPathEdit" type="LineEdit" parent="Margin/MainVBox/SettingsView/ExportPathRow" unique_id=343029129]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 16
+placeholder_text = "Documents/Splines/"
+
+[node name="ExportPathEditButton" type="Button" parent="Margin/MainVBox/SettingsView/ExportPathRow" unique_id=580787586]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Edit"
+
+[node name="UndoStepsRow" type="HBoxContainer" parent="Margin/MainVBox/SettingsView" unique_id=295323368]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="Margin/MainVBox/SettingsView/UndoStepsRow" unique_id=342839476]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+text = "Undo Steps"
+
+[node name="UndoStepsSpin" type="SpinBox" parent="Margin/MainVBox/SettingsView/UndoStepsRow" unique_id=1454288441]
+layout_mode = 2
+min_value = 1.0
+value = 1.0
+
+[node name="AutosaveDelayRow" type="HBoxContainer" parent="Margin/MainVBox/SettingsView" unique_id=901221974]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="Margin/MainVBox/SettingsView/AutosaveDelayRow" unique_id=2073788180]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+text = "Autosave Delay"
+
+[node name="AutosaveDelaySpin" type="SpinBox" parent="Margin/MainVBox/SettingsView/AutosaveDelayRow" unique_id=114777098]
+layout_mode = 2
+max_value = 10.0
+step = 0.5
+suffix = "s"
+
+[node name="PanelSideRow" type="HBoxContainer" parent="Margin/MainVBox/SettingsView" unique_id=76714965]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="Margin/MainVBox/SettingsView/PanelSideRow" unique_id=1013888657]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+text = "Panel Side"
+
+[node name="PanelSideButton" type="Button" parent="Margin/MainVBox/SettingsView/PanelSideRow" unique_id=1564663620]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+
+[node name="MeshResolutionRow" type="HBoxContainer" parent="Margin/MainVBox/SettingsView" unique_id=1676773689]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="Margin/MainVBox/SettingsView/MeshResolutionRow" unique_id=451485603]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+text = "Mesh Resolution"
+
+[node name="MeshResolutionSpin" type="SpinBox" parent="Margin/MainVBox/SettingsView/MeshResolutionRow" unique_id=1024143475]
+layout_mode = 2
+min_value = 3.0
+max_value = 32.0
+value = 3.0
+
+[node name="SplineResolutionRow" type="HBoxContainer" parent="Margin/MainVBox/SettingsView" unique_id=1033562819]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="Margin/MainVBox/SettingsView/SplineResolutionRow" unique_id=841790326]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+text = "Spline Resolution"
+
+[node name="SplineResolutionSpin" type="SpinBox" parent="Margin/MainVBox/SettingsView/SplineResolutionRow" unique_id=220419700]
+layout_mode = 2
+min_value = 1.0
+max_value = 32.0
+value = 1.0
+
+[node name="SettingsBackButton" type="Button" parent="Margin/MainVBox/SettingsView" unique_id=336008948]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Back"
+
+[node name="ImportView" type="VBoxContainer" parent="Margin/MainVBox" unique_id=1046706559]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ImportTitle" type="Label" parent="Margin/MainVBox/ImportView" unique_id=964057594]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 24
+text = "Import Project"
+horizontal_alignment = 1
+
+[node name="ImportPathLabel" type="Label" parent="Margin/MainVBox/ImportView" unique_id=202739334]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.5, 0.5, 0.5, 1)
+theme_override_font_sizes/font_size = 12
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="SeparatorA" type="HSeparator" parent="Margin/MainVBox/ImportView" unique_id=455779085]
+layout_mode = 2
+
+[node name="ImportScroll" type="ScrollContainer" parent="Margin/MainVBox/ImportView" unique_id=2051266047]
+custom_minimum_size = Vector2(0, 300)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ImportList" type="VBoxContainer" parent="Margin/MainVBox/ImportView/ImportScroll" unique_id=590725043]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="SeparatorB" type="HSeparator" parent="Margin/MainVBox/ImportView" unique_id=865348555]
+layout_mode = 2
+
+[node name="ImportRefreshButton" type="Button" parent="Margin/MainVBox/ImportView" unique_id=1722501791]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Refresh"
+
+[node name="ImportBackButton" type="Button" parent="Margin/MainVBox/ImportView" unique_id=503856979]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Back"

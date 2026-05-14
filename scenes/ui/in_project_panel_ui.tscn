@@ -1,0 +1,350 @@
+[gd_scene format=3 uid="uid://foexic5kgyit"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.1, 0.1, 0.12, 0.85)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_options"]
+bg_color = Color(0.08, 0.08, 0.1, 0.94)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[node name="InProjectPanelUI" type="PanelContainer" unique_id=1054658878]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="Margin" type="MarginContainer" parent="." unique_id=1202155628]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="MainVBox" type="VBoxContainer" parent="Margin" unique_id=1904825013]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="TopRow" type="HBoxContainer" parent="Margin/MainVBox" unique_id=1589020568]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="CloseButton" type="Button" parent="Margin/MainVBox/TopRow" unique_id=1199550046]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+text = "Close"
+
+[node name="UndoButton" type="Button" parent="Margin/MainVBox/TopRow" unique_id=1763507117]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+text = "Undo"
+
+[node name="RedoButton" type="Button" parent="Margin/MainVBox/TopRow" unique_id=1230533730]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+text = "Redo"
+
+[node name="ResetButton" type="Button" parent="Margin/MainVBox/TopRow" unique_id=1056411961]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+text = "Reset"
+
+[node name="SeparatorA" type="HSeparator" parent="Margin/MainVBox" unique_id=2066654564]
+layout_mode = 2
+
+[node name="ModeRow" type="HBoxContainer" parent="Margin/MainVBox" unique_id=1463059666]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="SmoothnessLabel" type="Label" parent="Margin/MainVBox/ModeRow" unique_id=1084607507]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+text = "Smoothing"
+
+[node name="SmoothnessSlider" type="HSlider" parent="Margin/MainVBox/ModeRow" unique_id=1989288381]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+max_value = 1.0
+step = 0.05
+
+[node name="SizeButton" type="Button" parent="Margin/MainVBox/ModeRow" unique_id=1804131303]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+toggle_mode = true
+text = "Size"
+
+[node name="WeightButton" type="Button" parent="Margin/MainVBox/ModeRow" unique_id=2015701275]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+toggle_mode = true
+text = "Weight"
+
+[node name="OptionsRow" type="HBoxContainer" parent="Margin/MainVBox" unique_id=1004695196]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="SnapButton" type="Button" parent="Margin/MainVBox/OptionsRow" unique_id=1304440348]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+toggle_mode = true
+text = "Snapping"
+
+[node name="MirrorButton" type="Button" parent="Margin/MainVBox/OptionsRow" unique_id=826399012]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+toggle_mode = true
+text = "Mirroring"
+
+[node name="SeparatorB" type="HSeparator" parent="Margin/MainVBox" unique_id=1822834364]
+layout_mode = 2
+
+[node name="SplineListStack" type="Control" parent="Margin/MainVBox" unique_id=603681935]
+custom_minimum_size = Vector2(0, 200)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SplineScroll" type="ScrollContainer" parent="Margin/MainVBox/SplineListStack" unique_id=1549616470]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="SplineList" type="VBoxContainer" parent="Margin/MainVBox/SplineListStack/SplineScroll" unique_id=145633540]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="EmptyLabel" type="Label" parent="Margin/MainVBox/SplineListStack/SplineScroll/SplineList" unique_id=1923036623]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.5, 0.5, 0.5, 1)
+theme_override_font_sizes/font_size = 18
+text = "add a spline by drawing"
+horizontal_alignment = 1
+
+[node name="OptionsOverlay" type="PanelContainer" parent="Margin/MainVBox/SplineListStack" unique_id=1176450167]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_options")
+
+[node name="OptionsMargin" type="MarginContainer" parent="Margin/MainVBox/SplineListStack/OptionsOverlay" unique_id=1338897676]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="OptionsContent" type="VBoxContainer" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin" unique_id=1321880555]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="OptionsTitle" type="Label" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent" unique_id=1710005714]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 18
+
+[node name="SnapOptions" type="VBoxContainer" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent" unique_id=688575395]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="SnapPositionRow" type="HBoxContainer" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/SnapOptions" unique_id=1362752932]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/SnapOptions/SnapPositionRow" unique_id=1626409152]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+text = "Position"
+
+[node name="SnapPositionCheck" type="CheckButton" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/SnapOptions/SnapPositionRow" unique_id=1037866053]
+layout_mode = 2
+
+[node name="SnapPositionStep" type="SpinBox" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/SnapOptions/SnapPositionRow" unique_id=1692652321]
+custom_minimum_size = Vector2(88, 0)
+layout_mode = 2
+min_value = 0.01
+max_value = 1.0
+step = 0.01
+value = 0.01
+
+[node name="SnapSizeRow" type="HBoxContainer" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/SnapOptions" unique_id=614617919]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/SnapOptions/SnapSizeRow" unique_id=1430199990]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+text = "Size"
+
+[node name="SnapSizeCheck" type="CheckButton" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/SnapOptions/SnapSizeRow" unique_id=1499367238]
+layout_mode = 2
+
+[node name="SnapSizeStep" type="SpinBox" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/SnapOptions/SnapSizeRow" unique_id=1930823926]
+custom_minimum_size = Vector2(88, 0)
+layout_mode = 2
+min_value = 0.01
+max_value = 1.0
+step = 0.01
+value = 0.01
+
+[node name="SnapWeightRow" type="HBoxContainer" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/SnapOptions" unique_id=271983519]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/SnapOptions/SnapWeightRow" unique_id=647113566]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+text = "Weight"
+
+[node name="SnapWeightCheck" type="CheckButton" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/SnapOptions/SnapWeightRow" unique_id=479078124]
+layout_mode = 2
+
+[node name="SnapWeightStep" type="SpinBox" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/SnapOptions/SnapWeightRow" unique_id=371800307]
+custom_minimum_size = Vector2(88, 0)
+layout_mode = 2
+min_value = 0.01
+max_value = 1.0
+step = 0.01
+value = 0.01
+
+[node name="MirrorOptions" type="VBoxContainer" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent" unique_id=1834391058]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="MirrorXRow" type="HBoxContainer" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions" unique_id=1928196409]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions/MirrorXRow" unique_id=1175070318]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+text = "X Axis"
+
+[node name="MirrorXCheck" type="CheckButton" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions/MirrorXRow" unique_id=1272095661]
+layout_mode = 2
+disabled = true
+
+[node name="MirrorYRow" type="HBoxContainer" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions" unique_id=1533904193]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions/MirrorYRow" unique_id=1309763861]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+text = "Y Axis"
+
+[node name="MirrorYCheck" type="CheckButton" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions/MirrorYRow" unique_id=1296434906]
+layout_mode = 2
+disabled = true
+
+[node name="MirrorZRow" type="HBoxContainer" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions" unique_id=1227088592]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions/MirrorZRow" unique_id=1866440376]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+text = "Z Axis"
+
+[node name="MirrorZCheck" type="CheckButton" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions/MirrorZRow" unique_id=325949748]
+layout_mode = 2
+disabled = true
+
+[node name="MirrorModeRow" type="HBoxContainer" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions" unique_id=1020477732]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions/MirrorModeRow" unique_id=1514742717]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+text = "Mode"
+
+[node name="MirrorModeButton" type="OptionButton" parent="Margin/MainVBox/SplineListStack/OptionsOverlay/OptionsMargin/OptionsContent/MirrorOptions/MirrorModeRow" unique_id=1506560691]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+disabled = true
+selected = 0
+item_count = 3
+popup/item_0/text = "Disabled"
+popup/item_0/id = 0
+popup/item_1/text = "Live"
+popup/item_1/id = 1
+popup/item_2/text = "Apply"
+popup/item_2/id = 2
+
+[node name="SeparatorC" type="HSeparator" parent="Margin/MainVBox" unique_id=1396230359]
+layout_mode = 2
+
+[node name="BottomRow" type="HBoxContainer" parent="Margin/MainVBox" unique_id=109653079]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="PropsTitle" type="Label" parent="Margin/MainVBox/BottomRow" unique_id=621344330]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 18
+text = "Spline Properties"
+
+[node name="OrderLabel" type="Label" parent="Margin/MainVBox/BottomRow" unique_id=1675476361]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+text = "Order U"
+horizontal_alignment = 2
+
+[node name="OrderSpin" type="SpinBox" parent="Margin/MainVBox/BottomRow" unique_id=561968347]
+layout_mode = 2
+min_value = 2.0
+max_value = 20.0
+value = 4.0
+
+[node name="CyclicLabel" type="Label" parent="Margin/MainVBox/BottomRow" unique_id=1711126082]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+text = "Cyclic"
+horizontal_alignment = 2
+
+[node name="CyclicCheck" type="CheckButton" parent="Margin/MainVBox/BottomRow" unique_id=947086322]
+layout_mode = 2

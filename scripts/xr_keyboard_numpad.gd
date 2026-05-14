@@ -6,6 +6,8 @@ extends XRKeyboard
 ## Backspace/Enter/Close in the rightmost column. Minus is enabled only when
 ## the target SpinBox allows negatives; decimal only when step < 1.
 
+const KEYBOARD_UI_SCENE := preload("res://scenes/ui/xr_keyboard_numpad_ui.tscn")
+
 static func create_panel(target: Control) -> XRKeyboardNumpad:
 	var kb := XRKeyboardNumpad.new()
 	kb.panel_size = Vector2(360, 360)
@@ -15,6 +17,9 @@ static func create_panel(target: Control) -> XRKeyboardNumpad:
 
 
 func _build_keys() -> void:
+	var ui := KEYBOARD_UI_SCENE.instantiate() as Control
+	_layout_root().add_child(ui)
+
 	var allow_minus := true
 	var allow_decimal := true
 	if target_control is SpinBox:
@@ -22,55 +27,29 @@ func _build_keys() -> void:
 		allow_minus = sb.min_value < 0.0
 		allow_decimal = sb.step < 1.0
 
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 8)
-	margin.add_theme_constant_override("margin_right", 8)
-	margin.add_theme_constant_override("margin_top", 8)
-	margin.add_theme_constant_override("margin_bottom", 8)
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_layout_root().add_child(margin)
+	for digit in range(10):
+		var digit_btn := ui.find_child("Digit%d" % digit, true, false) as Button
+		digit_btn.pressed.connect(_insert.bind(str(digit)))
 
-	var grid := GridContainer.new()
-	grid.columns = 4
-	grid.add_theme_constant_override("h_separation", 6)
-	grid.add_theme_constant_override("v_separation", 6)
-	margin.add_child(grid)
+	var bksp_btn := ui.find_child("BackspaceButton", true, false) as Button
+	bksp_btn.pressed.connect(_backspace)
 
-	# Row 1
-	_digit(grid, "7")
-	_digit(grid, "8")
-	_digit(grid, "9")
-	_make_key("Bksp", grid, true).pressed.connect(_backspace)
+	var enter_btn := ui.find_child("EnterButton", true, false) as Button
+	enter_btn.pressed.connect(_commit_and_close)
 
-	# Row 2
-	_digit(grid, "4")
-	_digit(grid, "5")
-	_digit(grid, "6")
-	_make_key("Enter", grid, true).pressed.connect(_commit_and_close)
+	var cancel_btn := ui.find_child("CancelButton", true, false) as Button
+	cancel_btn.pressed.connect(_cancel)
 
-	# Row 3
-	_digit(grid, "1")
-	_digit(grid, "2")
-	_digit(grid, "3")
-	_make_key("Cancel", grid, true).pressed.connect(_cancel)
-
-	# Row 4
-	var minus_btn := _make_key("-", grid, true)
+	var minus_btn := ui.find_child("MinusButton", true, false) as Button
 	minus_btn.disabled = not allow_minus
 	minus_btn.pressed.connect(_on_minus_pressed)
 
-	_digit(grid, "0")
-
-	var dot_btn := _make_key(".", grid, true)
+	var dot_btn := ui.find_child("DecimalButton", true, false) as Button
 	dot_btn.disabled = not allow_decimal
 	dot_btn.pressed.connect(_on_decimal_pressed)
 
-	_make_key("Clear", grid, true).pressed.connect(_on_clear_pressed)
-
-
-func _digit(parent: Control, ch: String) -> void:
-	var btn := _make_key(ch, parent, true)
-	btn.pressed.connect(_insert.bind(ch))
+	var clear_btn := ui.find_child("ClearButton", true, false) as Button
+	clear_btn.pressed.connect(_on_clear_pressed)
 
 
 ## Minus only meaningful at column 0; toggle if already present.

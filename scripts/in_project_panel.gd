@@ -20,14 +20,16 @@ var _accuracy_slider: HSlider
 var _accuracy_container: HBoxContainer
 var _snap_btn: Button
 var _mirror_btn: Button
-var _options_container: VBoxContainer
+var _options_container: PanelContainer
+var _options_content: VBoxContainer
 var _options_title: Label
 var _snap_options_container: VBoxContainer
 var _mirror_options_container: VBoxContainer
+var _spline_list_stack: Control
 var _spline_list_container: VBoxContainer
 var _spline_scroll: ScrollContainer
 var _empty_label: Label
-var _props_container: VBoxContainer
+var _props_container: Control
 var _order_spin: SpinBox
 var _cyclic_check: CheckButton
 var _snap_pos_check: CheckButton
@@ -47,6 +49,7 @@ var _active_options_panel: String = ""
 const OPTIONS_NONE := ""
 const OPTIONS_SNAP := "snap"
 const OPTIONS_MIRROR := "mirror"
+const PANEL_UI_SCENE := preload("res://scenes/ui/in_project_panel_ui.tscn")
 
 
 static func create_panel(app_mgr) -> InProjectPanel:
@@ -74,204 +77,84 @@ func _ready() -> void:
 
 
 func _build_ui() -> void:
-	var panel_container := PanelContainer.new()
-	panel_container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var ui := PANEL_UI_SCENE.instantiate() as Control
+	content_root.add_child(ui)
 
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.1, 0.1, 0.12, 0.85)
-	style.corner_radius_top_left = 6
-	style.corner_radius_top_right = 6
-	style.corner_radius_bottom_left = 6
-	style.corner_radius_bottom_right = 6
-	panel_container.add_theme_stylebox_override("panel", style)
-
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 12)
-	margin.add_theme_constant_override("margin_right", 12)
-	margin.add_theme_constant_override("margin_top", 10)
-	margin.add_theme_constant_override("margin_bottom", 10)
-	panel_container.add_child(margin)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 6)
-	margin.add_child(vbox)
-
-	# --- Top row: Close, Undo, Redo, Reset ---
-	var top_row := HBoxContainer.new()
-	top_row.add_theme_constant_override("separation", 4)
-	vbox.add_child(top_row)
-
-	var close_btn := _make_button("Close", top_row)
+	var close_btn := ui.find_child("CloseButton", true, false) as Button
 	close_btn.pressed.connect(_on_close_pressed)
 
-	_undo_btn = _make_button("Undo", top_row)
+	_undo_btn = ui.find_child("UndoButton", true, false) as Button
 	_undo_btn.pressed.connect(_on_undo_pressed)
 
-	_redo_btn = _make_button("Redo", top_row)
+	_redo_btn = ui.find_child("RedoButton", true, false) as Button
 	_redo_btn.pressed.connect(_on_redo_pressed)
 
-	var reset_btn := _make_button("Reset", top_row)
+	var reset_btn := ui.find_child("ResetButton", true, false) as Button
 	reset_btn.pressed.connect(_on_reset_pressed)
 
-	# --- Mode selection row ---
-	var mode_row := HBoxContainer.new()
-	mode_row.add_theme_constant_override("separation", 2)
-	vbox.add_child(mode_row)
-
 	_mode_group = ButtonGroup.new()
-	var mode_names := ["Size", "Weight"]
-	for i in mode_names.size():
-		var btn := Button.new()
-		btn.text = mode_names[i]
-		btn.toggle_mode = true
-		btn.button_group = _mode_group
-		btn.add_theme_font_size_override("font_size", 18)
-		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.pressed.connect(_on_mode_pressed.bind(i))
-		mode_row.add_child(btn)
-		_mode_buttons.append(btn)
+	_mode_buttons = [
+		ui.find_child("SizeButton", true, false) as Button,
+		ui.find_child("WeightButton", true, false) as Button,
+	]
+	for i in _mode_buttons.size():
+		_mode_buttons[i].button_group = _mode_group
+		_mode_buttons[i].pressed.connect(_on_mode_pressed.bind(i))
 
-	# --- Curve Accuracy slider ---
-	_accuracy_container = HBoxContainer.new()
-	_accuracy_container.add_theme_constant_override("separation", 6)
-	vbox.add_child(_accuracy_container)
-
-	var acc_label := Label.new()
-	acc_label.text = "Smoothness"
-	acc_label.add_theme_font_size_override("font_size", 18)
-	acc_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-	_accuracy_container.add_child(acc_label)
-
-	_accuracy_slider = HSlider.new()
-	_accuracy_slider.min_value = 0.0
-	_accuracy_slider.max_value = 1.0
-	_accuracy_slider.step = 0.05
+	_accuracy_container = ui.find_child("AccuracyRow", true, false) as HBoxContainer
+	if _accuracy_container == null:
+		_accuracy_container = ui.find_child("ModeRow", true, false) as HBoxContainer
+	_accuracy_slider = ui.find_child("SmoothnessSlider", true, false) as HSlider
 	_accuracy_slider.value = _interaction.curve_smoothness
-	_accuracy_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_accuracy_slider.value_changed.connect(_on_accuracy_changed)
-	_accuracy_container.add_child(_accuracy_slider)
 
-	# --- Option drawers ---
-	var options_row := HBoxContainer.new()
-	options_row.add_theme_constant_override("separation", 4)
-	vbox.add_child(options_row)
-
-	_snap_btn = _make_button("Snap", options_row)
-	_snap_btn.toggle_mode = true
+	_snap_btn = ui.find_child("SnapButton", true, false) as Button
 	_snap_btn.pressed.connect(_on_snap_options_pressed)
 
-	_mirror_btn = _make_button("Mirror", options_row)
-	_mirror_btn.toggle_mode = true
+	_mirror_btn = ui.find_child("MirrorButton", true, false) as Button
 	_mirror_btn.pressed.connect(_on_mirror_options_pressed)
 
-	_options_container = VBoxContainer.new()
-	_options_container.add_theme_constant_override("separation", 4)
-	_options_container.visible = false
-	vbox.add_child(_options_container)
+	_spline_list_stack = ui.find_child("SplineListStack", true, false) as Control
+	_spline_scroll = ui.find_child("SplineScroll", true, false) as ScrollContainer
+	_spline_list_container = ui.find_child("SplineList", true, false) as VBoxContainer
+	_empty_label = ui.find_child("EmptyLabel", true, false) as Label
 
-	_options_title = Label.new()
-	_options_title.add_theme_font_size_override("font_size", 18)
-	_options_title.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
-	_options_container.add_child(_options_title)
+	_options_container = ui.find_child("OptionsOverlay", true, false) as PanelContainer
+	_options_content = ui.find_child("OptionsContent", true, false) as VBoxContainer
+	_options_title = ui.find_child("OptionsTitle", true, false) as Label
+	_snap_options_container = ui.find_child("SnapOptions", true, false) as VBoxContainer
+	_mirror_options_container = ui.find_child("MirrorOptions", true, false) as VBoxContainer
 
-	_snap_options_container = VBoxContainer.new()
-	_snap_options_container.add_theme_constant_override("separation", 4)
-	_options_container.add_child(_snap_options_container)
+	_snap_pos_check = ui.find_child("SnapPositionCheck", true, false) as CheckButton
+	_snap_pos_step = ui.find_child("SnapPositionStep", true, false) as SpinBox
+	_snap_pos_check.toggled.connect(_on_snap_pos_toggled)
+	_snap_pos_step.value_changed.connect(_on_snap_pos_step_changed)
+	_wire_snap_step_keyboard(_snap_pos_step)
 
-	var pos_pair := _make_snap_row(_snap_options_container, "Position",
-		_interaction.snap_position_enabled, _interaction.snap_position_step,
-		_on_snap_pos_toggled, _on_snap_pos_step_changed)
-	_snap_pos_check = pos_pair[0]
-	_snap_pos_step = pos_pair[1]
+	_snap_size_check = ui.find_child("SnapSizeCheck", true, false) as CheckButton
+	_snap_size_step = ui.find_child("SnapSizeStep", true, false) as SpinBox
+	_snap_size_check.toggled.connect(_on_snap_size_toggled)
+	_snap_size_step.value_changed.connect(_on_snap_size_step_changed)
+	_wire_snap_step_keyboard(_snap_size_step)
 
-	var size_pair := _make_snap_row(_snap_options_container, "Size",
-		_interaction.snap_size_enabled, _interaction.snap_size_step,
-		_on_snap_size_toggled, _on_snap_size_step_changed)
-	_snap_size_check = size_pair[0]
-	_snap_size_step = size_pair[1]
+	_snap_weight_check = ui.find_child("SnapWeightCheck", true, false) as CheckButton
+	_snap_weight_step = ui.find_child("SnapWeightStep", true, false) as SpinBox
+	_snap_weight_check.toggled.connect(_on_snap_weight_toggled)
+	_snap_weight_step.value_changed.connect(_on_snap_weight_step_changed)
+	_wire_snap_step_keyboard(_snap_weight_step)
+	_refresh_snap_checks()
 
-	var weight_pair := _make_snap_row(_snap_options_container, "Weight",
-		_interaction.snap_weight_enabled, _interaction.snap_weight_step,
-		_on_snap_weight_toggled, _on_snap_weight_step_changed)
-	_snap_weight_check = weight_pair[0]
-	_snap_weight_step = weight_pair[1]
-
-	_mirror_options_container = VBoxContainer.new()
-	_mirror_options_container.add_theme_constant_override("separation", 4)
-	_options_container.add_child(_mirror_options_container)
-	_build_mirror_options()
-
-	# --- Separator ---
-	vbox.add_child(HSeparator.new())
-
-	# --- Spline list ---
-	_spline_scroll = ScrollContainer.new()
-	_spline_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_spline_scroll.custom_minimum_size = Vector2(0, 200)
-	vbox.add_child(_spline_scroll)
-
-	_spline_list_container = VBoxContainer.new()
-	_spline_list_container.add_theme_constant_override("separation", 2)
-	_spline_list_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_spline_scroll.add_child(_spline_list_container)
-
-	_empty_label = Label.new()
-	_empty_label.text = "add a spline by drawing"
-	_empty_label.add_theme_font_size_override("font_size", 18)
-	_empty_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
-	_empty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_spline_list_container.add_child(_empty_label)
-
-	# --- Separator ---
-	vbox.add_child(HSeparator.new())
-
-	# --- Selected spline properties ---
-	_props_container = VBoxContainer.new()
-	_props_container.add_theme_constant_override("separation", 4)
-	vbox.add_child(_props_container)
-
-	var props_title := Label.new()
-	props_title.text = "Spline Properties"
-	props_title.add_theme_font_size_override("font_size", 18)
-	props_title.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
-	_props_container.add_child(props_title)
-
-	# Order U
-	var order_row := HBoxContainer.new()
-	order_row.add_theme_constant_override("separation", 6)
-	_props_container.add_child(order_row)
-	var order_label := Label.new()
-	order_label.text = "Order U"
-	order_label.add_theme_font_size_override("font_size", 18)
-	order_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-	order_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	order_row.add_child(order_label)
-	_order_spin = SpinBox.new()
-	_order_spin.min_value = 2
-	_order_spin.max_value = 20
-	_order_spin.value = 4
-	_order_spin.add_theme_font_size_override("font_size", 18)
+	_props_container = ui.find_child("PropsContainer", true, false) as Control
+	if _props_container == null:
+		_props_container = ui.find_child("BottomRow", true, false) as Control
+	_order_spin = ui.find_child("OrderSpin", true, false) as SpinBox
 	_order_spin.value_changed.connect(_on_order_changed)
 	var order_le := _order_spin.get_line_edit()
 	order_le.gui_input.connect(_on_order_le_gui_input)
 	order_le.focus_exited.connect(_on_order_focus_exited)
-	order_row.add_child(_order_spin)
 
-	# Cyclic
-	var cyclic_row := HBoxContainer.new()
-	cyclic_row.add_theme_constant_override("separation", 6)
-	_props_container.add_child(cyclic_row)
-	var cyclic_label := Label.new()
-	cyclic_label.text = "Cyclic"
-	cyclic_label.add_theme_font_size_override("font_size", 18)
-	cyclic_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-	cyclic_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	cyclic_row.add_child(cyclic_label)
-	_cyclic_check = CheckButton.new()
+	_cyclic_check = ui.find_child("CyclicCheck", true, false) as CheckButton
 	_cyclic_check.toggled.connect(_on_cyclic_toggled)
-	cyclic_row.add_child(_cyclic_check)
-
-	content_root.add_child(panel_container)
 
 
 func _connect_signals() -> void:
@@ -283,84 +166,12 @@ func _connect_signals() -> void:
 
 # --- Snap toggles ---
 
-## Build a `[label][CheckButton][SpinBox]` row. All three snap inputs share
-## the same 0.01-1.0 range; values outside that range are clamped by the
-## SpinBox on commit. Returns `[check, spin]` so the caller can store refs.
-func _make_snap_row(parent: Control, label_text: String,
-		initial_on: bool, initial_step: float,
-		toggle_handler: Callable, step_handler: Callable) -> Array:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	parent.add_child(row)
-
-	var lbl := Label.new()
-	lbl.text = label_text
-	lbl.add_theme_font_size_override("font_size", 18)
-	lbl.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(lbl)
-
-	var check := CheckButton.new()
-	check.button_pressed = initial_on
-	check.toggled.connect(toggle_handler)
-	row.add_child(check)
-
-	var spin := SpinBox.new()
-	spin.min_value = 0.01
-	spin.max_value = 1.0
-	spin.step = 0.01
-	spin.value = initial_step
-	spin.custom_minimum_size = Vector2(88, 0)
-	spin.add_theme_font_size_override("font_size", 18)
-	spin.value_changed.connect(step_handler)
-	# Reuse the numpad keyboard. gui_input filter ensures clicking the up/down
-	# arrows doesn't pop the keyboard — only a direct click on the text area.
+## Reuse the numpad keyboard. gui_input filter ensures clicking the up/down
+## arrows doesn't pop the keyboard — only a direct click on the text area.
+func _wire_snap_step_keyboard(spin: SpinBox) -> void:
 	var le := spin.get_line_edit()
 	le.gui_input.connect(_on_snap_step_le_gui_input.bind(spin))
 	le.focus_exited.connect(_on_snap_step_focus_exited.bind(spin))
-	row.add_child(spin)
-
-	return [check, spin]
-
-
-func _build_mirror_options() -> void:
-	var axes := ["X Axis", "Y Axis", "Z Axis"]
-	for axis_name in axes:
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 6)
-		_mirror_options_container.add_child(row)
-
-		var lbl := Label.new()
-		lbl.text = axis_name
-		lbl.add_theme_font_size_override("font_size", 18)
-		lbl.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(lbl)
-
-		var check := CheckButton.new()
-		check.disabled = true
-		row.add_child(check)
-
-	var mode_row := HBoxContainer.new()
-	mode_row.add_theme_constant_override("separation", 6)
-	_mirror_options_container.add_child(mode_row)
-
-	var mode_label := Label.new()
-	mode_label.text = "Mode"
-	mode_label.add_theme_font_size_override("font_size", 18)
-	mode_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-	mode_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	mode_row.add_child(mode_label)
-
-	var mode_btn := OptionButton.new()
-	mode_btn.add_item("Disabled")
-	mode_btn.add_item("Live")
-	mode_btn.add_item("Apply")
-	mode_btn.selected = 0
-	mode_btn.disabled = true
-	mode_btn.custom_minimum_size = Vector2(150, 0)
-	mode_btn.add_theme_font_size_override("font_size", 18)
-	mode_row.add_child(mode_btn)
 
 
 func _on_snap_pos_toggled(on: bool) -> void:
@@ -438,7 +249,6 @@ func _set_options_panel(panel_name: String) -> void:
 
 	var showing_options := panel_name != OPTIONS_NONE
 	_options_container.visible = showing_options
-	_spline_scroll.visible = not showing_options
 
 	_snap_options_container.visible = panel_name == OPTIONS_SNAP
 	_mirror_options_container.visible = panel_name == OPTIONS_MIRROR

@@ -12,11 +12,10 @@ signal cancelled
 ## variant a SpinBox (whose internal LineEdit will be used).
 var target_control: Control = null
 
-const BTN_FONT_SIZE := 22
-const BTN_MIN_HEIGHT := 44
-
 # Snapshot of the target's text at open time, restored on Cancel.
 var _initial_text: String = ""
+
+const BACKGROUND_UI_SCENE := preload("res://scenes/ui/xr_keyboard_background_ui.tscn")
 
 
 func _ready() -> void:
@@ -32,18 +31,7 @@ func _build_keys() -> void:
 
 
 func _build_background() -> void:
-	var panel := PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.1, 0.1, 0.12, 0.9)
-	style.corner_radius_top_left = 6
-	style.corner_radius_top_right = 6
-	style.corner_radius_bottom_left = 6
-	style.corner_radius_bottom_right = 6
-	panel.add_theme_stylebox_override("panel", style)
-
-	content_root.add_child(panel)
+	content_root.add_child(BACKGROUND_UI_SCENE.instantiate())
 
 
 ## The root inside the background panel where subclasses add their key grid.
@@ -129,17 +117,3 @@ func _cancel() -> void:
 		le.release_focus()
 	cancelled.emit()
 	_close()
-
-
-# --- Helpers for subclasses ---
-
-func _make_key(label: String, parent: Control, expand: bool = false) -> Button:
-	var btn := Button.new()
-	btn.text = label
-	btn.add_theme_font_size_override("font_size", BTN_FONT_SIZE)
-	btn.custom_minimum_size = Vector2(0, BTN_MIN_HEIGHT)
-	btn.focus_mode = Control.FOCUS_NONE  # keyboard buttons must not steal focus
-	if expand:
-		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	parent.add_child(btn)
-	return btn

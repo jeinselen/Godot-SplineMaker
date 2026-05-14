@@ -733,17 +733,17 @@ func _update_joystick_edit(controller_id: int, delta: float) -> void:
 		raw += change
 		accum[key] = raw
 
-		var snapped: float
+		var snapped_value: float
 		if current_mode == Mode.SIZE:
-			snapped = snap_size_value(raw)
-			sn.data.sizes[idx] = snapped
+			snapped_value = snap_size_value(raw)
+			sn.data.sizes[idx] = snapped_value
 		else:
-			snapped = snap_weight_value(raw)
-			sn.data.weights[idx] = snapped
+			snapped_value = snap_weight_value(raw)
+			sn.data.weights[idx] = snapped_value
 		sn.mark_dirty()
 
 		if i == 0:
-			first_snapped = snapped
+			first_snapped = snapped_value
 
 	_update_value_label(controller_id, first_snapped)
 

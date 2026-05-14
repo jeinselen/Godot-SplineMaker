@@ -1,0 +1,146 @@
+[gd_scene format=3 uid="uid://vgs3gmcic63e"]
+
+[node name="NumpadKeyboardUI" type="MarginContainer" unique_id=963161408]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="Grid" type="GridContainer" parent="." unique_id=2087263467]
+layout_mode = 2
+theme_override_constants/h_separation = 6
+theme_override_constants/v_separation = 6
+columns = 4
+
+[node name="Digit7" type="Button" parent="Grid" unique_id=1036616010]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "7"
+
+[node name="Digit8" type="Button" parent="Grid" unique_id=2052988437]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "8"
+
+[node name="Digit9" type="Button" parent="Grid" unique_id=1263638716]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "9"
+
+[node name="BackspaceButton" type="Button" parent="Grid" unique_id=16944462]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "Bksp"
+
+[node name="Digit4" type="Button" parent="Grid" unique_id=1605622970]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "4"
+
+[node name="Digit5" type="Button" parent="Grid" unique_id=1667380228]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "5"
+
+[node name="Digit6" type="Button" parent="Grid" unique_id=640599172]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "6"
+
+[node name="EnterButton" type="Button" parent="Grid" unique_id=1015532199]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "Enter"
+
+[node name="Digit1" type="Button" parent="Grid" unique_id=590837891]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "1"
+
+[node name="Digit2" type="Button" parent="Grid" unique_id=125276964]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "2"
+
+[node name="Digit3" type="Button" parent="Grid" unique_id=1458177855]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "3"
+
+[node name="CancelButton" type="Button" parent="Grid" unique_id=1922659428]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "Cancel"
+
+[node name="MinusButton" type="Button" parent="Grid" unique_id=1118860154]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "-"
+
+[node name="Digit0" type="Button" parent="Grid" unique_id=559366272]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "0"
+
+[node name="DecimalButton" type="Button" parent="Grid" unique_id=1919310309]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "."
+
+[node name="ClearButton" type="Button" parent="Grid" unique_id=1644345115]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "Clear"
