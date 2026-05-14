@@ -18,6 +18,12 @@ var _mode_buttons: Array[Button] = []
 var _mode_group: ButtonGroup
 var _accuracy_slider: HSlider
 var _accuracy_container: HBoxContainer
+var _snap_btn: Button
+var _mirror_btn: Button
+var _options_container: VBoxContainer
+var _options_title: Label
+var _snap_options_container: VBoxContainer
+var _mirror_options_container: VBoxContainer
 var _spline_list_container: VBoxContainer
 var _spline_scroll: ScrollContainer
 var _empty_label: Label
@@ -36,6 +42,11 @@ var _spline_rows: Array[Dictionary] = []  # [{node: HBoxContainer, spline: Splin
 
 # Suppress property change signals during programmatic updates
 var _updating_props: bool = false
+var _active_options_panel: String = ""
+
+const OPTIONS_NONE := ""
+const OPTIONS_SNAP := "snap"
+const OPTIONS_MIRROR := "mirror"
 
 
 static func create_panel(app_mgr) -> InProjectPanel:
@@ -59,6 +70,7 @@ func _ready() -> void:
 	_refresh_spline_list()
 	_update_mode_buttons()
 	_update_props()
+	_update_options_buttons()
 
 
 func _build_ui() -> void:
@@ -119,23 +131,6 @@ func _build_ui() -> void:
 		mode_row.add_child(btn)
 		_mode_buttons.append(btn)
 
-	# --- Size / Weight snap row: two cells aligned under the mode buttons ---
-	var sw_snap_row := HBoxContainer.new()
-	sw_snap_row.add_theme_constant_override("separation", 2)
-	vbox.add_child(sw_snap_row)
-
-	var size_pair := _make_snap_pair(sw_snap_row,
-		_interaction.snap_size_enabled, _interaction.snap_size_step,
-		_on_snap_size_toggled, _on_snap_size_step_changed, true)
-	_snap_size_check = size_pair[0]
-	_snap_size_step = size_pair[1]
-
-	var weight_pair := _make_snap_pair(sw_snap_row,
-		_interaction.snap_weight_enabled, _interaction.snap_weight_step,
-		_on_snap_weight_toggled, _on_snap_weight_step_changed, true)
-	_snap_weight_check = weight_pair[0]
-	_snap_weight_step = weight_pair[1]
-
 	# --- Curve Accuracy slider ---
 	_accuracy_container = HBoxContainer.new()
 	_accuracy_container.add_theme_constant_override("separation", 6)
@@ -156,23 +151,55 @@ func _build_ui() -> void:
 	_accuracy_slider.value_changed.connect(_on_accuracy_changed)
 	_accuracy_container.add_child(_accuracy_slider)
 
-	# --- Position snap row ---
-	var pos_snap_row := HBoxContainer.new()
-	pos_snap_row.add_theme_constant_override("separation", 6)
-	vbox.add_child(pos_snap_row)
+	# --- Option drawers ---
+	var options_row := HBoxContainer.new()
+	options_row.add_theme_constant_override("separation", 4)
+	vbox.add_child(options_row)
 
-	var pos_label := Label.new()
-	pos_label.text = "Position"
-	pos_label.add_theme_font_size_override("font_size", 18)
-	pos_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-	pos_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	pos_snap_row.add_child(pos_label)
+	_snap_btn = _make_button("Snap", options_row)
+	_snap_btn.toggle_mode = true
+	_snap_btn.pressed.connect(_on_snap_options_pressed)
 
-	var pos_pair := _make_snap_pair(pos_snap_row,
+	_mirror_btn = _make_button("Mirror", options_row)
+	_mirror_btn.toggle_mode = true
+	_mirror_btn.pressed.connect(_on_mirror_options_pressed)
+
+	_options_container = VBoxContainer.new()
+	_options_container.add_theme_constant_override("separation", 4)
+	_options_container.visible = false
+	vbox.add_child(_options_container)
+
+	_options_title = Label.new()
+	_options_title.add_theme_font_size_override("font_size", 18)
+	_options_title.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	_options_container.add_child(_options_title)
+
+	_snap_options_container = VBoxContainer.new()
+	_snap_options_container.add_theme_constant_override("separation", 4)
+	_options_container.add_child(_snap_options_container)
+
+	var pos_pair := _make_snap_row(_snap_options_container, "Position",
 		_interaction.snap_position_enabled, _interaction.snap_position_step,
-		_on_snap_pos_toggled, _on_snap_pos_step_changed, false)
+		_on_snap_pos_toggled, _on_snap_pos_step_changed)
 	_snap_pos_check = pos_pair[0]
 	_snap_pos_step = pos_pair[1]
+
+	var size_pair := _make_snap_row(_snap_options_container, "Size",
+		_interaction.snap_size_enabled, _interaction.snap_size_step,
+		_on_snap_size_toggled, _on_snap_size_step_changed)
+	_snap_size_check = size_pair[0]
+	_snap_size_step = size_pair[1]
+
+	var weight_pair := _make_snap_row(_snap_options_container, "Weight",
+		_interaction.snap_weight_enabled, _interaction.snap_weight_step,
+		_on_snap_weight_toggled, _on_snap_weight_step_changed)
+	_snap_weight_check = weight_pair[0]
+	_snap_weight_step = weight_pair[1]
+
+	_mirror_options_container = VBoxContainer.new()
+	_mirror_options_container.add_theme_constant_override("separation", 4)
+	_options_container.add_child(_mirror_options_container)
+	_build_mirror_options()
 
 	# --- Separator ---
 	vbox.add_child(HSeparator.new())
@@ -256,60 +283,99 @@ func _connect_signals() -> void:
 
 # --- Snap toggles ---
 
-## Build a `[snap label][CheckButton][SpinBox]` cell. All three snap inputs
-## share the same 0.01–1.0 range; values outside that range are clamped by
-## the SpinBox on commit. Returns `[check, spin]` so the caller can store refs.
-func _make_snap_pair(parent: Control,
+## Build a `[label][CheckButton][SpinBox]` row. All three snap inputs share
+## the same 0.01-1.0 range; values outside that range are clamped by the
+## SpinBox on commit. Returns `[check, spin]` so the caller can store refs.
+func _make_snap_row(parent: Control, label_text: String,
 		initial_on: bool, initial_step: float,
-		toggle_handler: Callable, step_handler: Callable,
-		expand: bool) -> Array:
-	var box := HBoxContainer.new()
-	box.add_theme_constant_override("separation", 2)
-	if expand:
-		box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	parent.add_child(box)
+		toggle_handler: Callable, step_handler: Callable) -> Array:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	parent.add_child(row)
 
 	var lbl := Label.new()
-	lbl.text = "snap"
-	lbl.add_theme_font_size_override("font_size", 16)
+	lbl.text = label_text
+	lbl.add_theme_font_size_override("font_size", 18)
 	lbl.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-	box.add_child(lbl)
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(lbl)
 
 	var check := CheckButton.new()
 	check.button_pressed = initial_on
 	check.toggled.connect(toggle_handler)
-	box.add_child(check)
+	row.add_child(check)
 
 	var spin := SpinBox.new()
 	spin.min_value = 0.01
 	spin.max_value = 1.0
 	spin.step = 0.01
 	spin.value = initial_step
-	spin.custom_minimum_size = Vector2(72, 0)
-	if expand:
-		spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	spin.add_theme_font_size_override("font_size", 16)
+	spin.custom_minimum_size = Vector2(88, 0)
+	spin.add_theme_font_size_override("font_size", 18)
 	spin.value_changed.connect(step_handler)
 	# Reuse the numpad keyboard. gui_input filter ensures clicking the up/down
 	# arrows doesn't pop the keyboard — only a direct click on the text area.
 	var le := spin.get_line_edit()
 	le.gui_input.connect(_on_snap_step_le_gui_input.bind(spin))
 	le.focus_exited.connect(_on_snap_step_focus_exited.bind(spin))
-	box.add_child(spin)
+	row.add_child(spin)
 
 	return [check, spin]
 
 
+func _build_mirror_options() -> void:
+	var axes := ["X Axis", "Y Axis", "Z Axis"]
+	for axis_name in axes:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		_mirror_options_container.add_child(row)
+
+		var lbl := Label.new()
+		lbl.text = axis_name
+		lbl.add_theme_font_size_override("font_size", 18)
+		lbl.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(lbl)
+
+		var check := CheckButton.new()
+		check.disabled = true
+		row.add_child(check)
+
+	var mode_row := HBoxContainer.new()
+	mode_row.add_theme_constant_override("separation", 6)
+	_mirror_options_container.add_child(mode_row)
+
+	var mode_label := Label.new()
+	mode_label.text = "Mode"
+	mode_label.add_theme_font_size_override("font_size", 18)
+	mode_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+	mode_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mode_row.add_child(mode_label)
+
+	var mode_btn := OptionButton.new()
+	mode_btn.add_item("Disabled")
+	mode_btn.add_item("Live")
+	mode_btn.add_item("Apply")
+	mode_btn.selected = 0
+	mode_btn.disabled = true
+	mode_btn.custom_minimum_size = Vector2(150, 0)
+	mode_btn.add_theme_font_size_override("font_size", 18)
+	mode_row.add_child(mode_btn)
+
+
 func _on_snap_pos_toggled(on: bool) -> void:
 	_interaction.set_snap_position_enabled(on)
+	_update_options_buttons()
 
 
 func _on_snap_size_toggled(on: bool) -> void:
 	_interaction.set_snap_size_enabled(on)
+	_update_options_buttons()
 
 
 func _on_snap_weight_toggled(on: bool) -> void:
 	_interaction.set_snap_weight_enabled(on)
+	_update_options_buttons()
 
 
 func _on_snap_pos_step_changed(value: float) -> void:
@@ -356,6 +422,54 @@ func _refresh_snap_checks() -> void:
 		_snap_size_step.set_value_no_signal(_interaction.snap_size_step)
 	if _snap_weight_step:
 		_snap_weight_step.set_value_no_signal(_interaction.snap_weight_step)
+	_update_options_buttons()
+
+
+func _on_snap_options_pressed() -> void:
+	_set_options_panel(OPTIONS_NONE if _active_options_panel == OPTIONS_SNAP else OPTIONS_SNAP)
+
+
+func _on_mirror_options_pressed() -> void:
+	_set_options_panel(OPTIONS_NONE if _active_options_panel == OPTIONS_MIRROR else OPTIONS_MIRROR)
+
+
+func _set_options_panel(panel_name: String) -> void:
+	_active_options_panel = panel_name
+
+	var showing_options := panel_name != OPTIONS_NONE
+	_options_container.visible = showing_options
+	_spline_scroll.visible = not showing_options
+
+	_snap_options_container.visible = panel_name == OPTIONS_SNAP
+	_mirror_options_container.visible = panel_name == OPTIONS_MIRROR
+
+	if panel_name == OPTIONS_SNAP:
+		_options_title.text = "Snapping"
+	elif panel_name == OPTIONS_MIRROR:
+		_options_title.text = "Mirror"
+
+	_update_options_buttons()
+
+
+func _update_options_buttons() -> void:
+	if _snap_btn:
+		_snap_btn.text = "Snap •" if _snap_options_enabled() else "Snap"
+		_snap_btn.set_pressed_no_signal(_active_options_panel == OPTIONS_SNAP)
+	if _mirror_btn:
+		_mirror_btn.text = "Mirror •" if _mirror_options_enabled() else "Mirror"
+		_mirror_btn.set_pressed_no_signal(_active_options_panel == OPTIONS_MIRROR)
+
+
+func _snap_options_enabled() -> bool:
+	return (
+		_interaction.snap_position_enabled
+		or _interaction.snap_size_enabled
+		or _interaction.snap_weight_enabled
+	)
+
+
+func _mirror_options_enabled() -> bool:
+	return false
 
 
 func _process(delta: float) -> void:
