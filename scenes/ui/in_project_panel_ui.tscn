@@ -95,6 +95,38 @@ theme_override_font_sizes/font_size = 18
 toggle_mode = true
 text = "Weight"
 
+[node name="SensitivityRow" type="HBoxContainer" parent="Margin/MainVBox"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="SensitivityLabel" type="Label" parent="Margin/MainVBox/SensitivityRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+text = "Sensitivity"
+
+[node name="SensitivitySlider" type="HSlider" parent="Margin/MainVBox/SensitivityRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+max_value = 1.0
+step = 0.05
+value = 0.5
+
+[node name="PressureButton" type="Button" parent="Margin/MainVBox/SensitivityRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+toggle_mode = true
+text = "Pressure"
+
+[node name="SpeedButton" type="Button" parent="Margin/MainVBox/SensitivityRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+toggle_mode = true
+text = "Speed"
+
 [node name="OptionsRow" type="HBoxContainer" parent="Margin/MainVBox" unique_id=1004695196]
 layout_mode = 2
 theme_override_constants/separation = 4

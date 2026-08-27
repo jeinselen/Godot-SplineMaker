@@ -22,6 +22,7 @@ var _autosave_delay_spin: SpinBox
 var _panel_side_btn: Button
 var _mesh_res_spin: SpinBox
 var _spline_res_spin: SpinBox
+var _max_speed_spin: SpinBox
 
 # Delete confirmation state — state flows through closure binds, not stored fields
 
@@ -113,6 +114,10 @@ func _build_ui() -> void:
 	_spline_res_spin = ui.find_child("SplineResolutionSpin", true, false) as SpinBox
 	_spline_res_spin.value = _app_manager.settings.preview_spline_resolution
 	_wire_spinbox_keyboard(_spline_res_spin)
+
+	_max_speed_spin = ui.find_child("MaxDrawSpeedSpin", true, false) as SpinBox
+	_max_speed_spin.value = _app_manager.settings.max_draw_speed
+	_wire_spinbox_keyboard(_max_speed_spin)
 
 	var back_btn := ui.find_child("SettingsBackButton", true, false) as Button
 	back_btn.pressed.connect(_on_settings_back_pressed)
@@ -293,6 +298,7 @@ func _on_settings_back_pressed() -> void:
 	_app_manager.settings.panel_side = "left" if _panel_side_btn.text == "Left" else "right"
 	_app_manager.settings.preview_mesh_resolution = int(_mesh_res_spin.value)
 	_app_manager.settings.preview_spline_resolution = int(_spline_res_spin.value)
+	_app_manager.settings.max_draw_speed = _max_speed_spin.value
 	_app_manager.apply_settings()
 	_show_main_view()
 

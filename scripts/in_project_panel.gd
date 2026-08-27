@@ -17,6 +17,9 @@ var _redo_btn: Button
 var _mode_buttons: Array[Button] = []
 var _mode_group: ButtonGroup
 var _accuracy_slider: HSlider
+var _sensitivity_slider: HSlider
+var _width_source_buttons: Array[Button] = []
+var _width_source_group: ButtonGroup
 var _snap_btn: Button
 var _mirror_btn: Button
 var _options_container: PanelContainer
@@ -76,6 +79,7 @@ func _ready() -> void:
 	_connect_signals()
 	_refresh_spline_list()
 	_update_mode_buttons()
+	_refresh_draw_settings()
 	_update_props()
 	_update_options_buttons()
 
@@ -108,6 +112,19 @@ func _build_ui() -> void:
 	_accuracy_slider = ui.find_child("SmoothnessSlider", true, false) as HSlider
 	_accuracy_slider.value = _interaction.curve_smoothness
 	_accuracy_slider.value_changed.connect(_on_accuracy_changed)
+
+	_sensitivity_slider = ui.find_child("SensitivitySlider", true, false) as HSlider
+	_sensitivity_slider.value = _interaction.draw_sensitivity
+	_sensitivity_slider.value_changed.connect(_on_sensitivity_changed)
+
+	_width_source_group = ButtonGroup.new()
+	_width_source_buttons = [
+		ui.find_child("PressureButton", true, false) as Button,
+		ui.find_child("SpeedButton", true, false) as Button,
+	]
+	for i in _width_source_buttons.size():
+		_width_source_buttons[i].button_group = _width_source_group
+		_width_source_buttons[i].pressed.connect(_on_width_source_pressed.bind(i))
 
 	_snap_btn = ui.find_child("SnapButton", true, false) as Button
 	_snap_btn.pressed.connect(_on_snap_options_pressed)
@@ -185,6 +202,7 @@ func _connect_signals() -> void:
 	_interaction.mode_changed.connect(_on_mode_changed)
 	_interaction.snap_settings_changed.connect(_refresh_snap_checks)
 	_interaction.symmetry_settings_changed.connect(_refresh_symmetry_checks)
+	_interaction.draw_settings_changed.connect(_refresh_draw_settings)
 
 
 # --- Snap toggles ---
@@ -413,6 +431,29 @@ func _update_mode_buttons() -> void:
 
 func _on_accuracy_changed(value: float) -> void:
 	_interaction.set_curve_smoothness(value)
+
+
+func _on_sensitivity_changed(value: float) -> void:
+	_interaction.set_draw_sensitivity(value)
+
+
+func _on_width_source_pressed(index: int) -> void:
+	# Button order: Pressure=0, Speed=1
+	var source_map := [
+		_interaction.WidthSource.PRESSURE,
+		_interaction.WidthSource.SPEED,
+	]
+	_interaction.set_width_source(source_map[index])
+
+
+## Re-sync sensitivity slider and Pressure/Speed toggle from interaction state
+## (project load / undo / redo). Uses *_no_signal so writes don't re-fire setters.
+func _refresh_draw_settings() -> void:
+	if _sensitivity_slider:
+		_sensitivity_slider.set_value_no_signal(_interaction.draw_sensitivity)
+	var btn_index: int = 1 if _interaction.width_source == _interaction.WidthSource.SPEED else 0
+	if btn_index < _width_source_buttons.size() and _width_source_buttons[btn_index]:
+		_width_source_buttons[btn_index].set_pressed_no_signal(true)
 
 
 # --- Spline list ---

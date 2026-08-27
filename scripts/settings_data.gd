@@ -11,6 +11,10 @@ var autosave_delay: float = 2.0   # seconds to wait before committing an autosav
 var panel_side: String = "left"   # "left" or "right"
 var preview_mesh_resolution: int = 8
 var preview_spline_resolution: int = 8
+# Hand speed (m/s, real-world) that maps to the thinnest stroke in Speed draw
+# mode. Slow movement draws thick (full action-area radius); movement at or
+# above this speed draws thin. Tuned so a comfortable arm stroke reaches max.
+var max_draw_speed: float = 1.2
 
 
 func load_from_file() -> void:
@@ -29,6 +33,7 @@ func load_from_file() -> void:
 	panel_side = side if side in ["left", "right"] else "left"
 	preview_mesh_resolution = clampi(int(d.get("preview_mesh_resolution", 8)), 3, 32)
 	preview_spline_resolution = clampi(int(d.get("preview_spline_resolution", 8)), 1, 32)
+	max_draw_speed = clampf(float(d.get("max_draw_speed", 1.2)), 0.1, 3.0)
 
 
 func save_to_file() -> void:
@@ -39,6 +44,7 @@ func save_to_file() -> void:
 		"panel_side": panel_side,
 		"preview_mesh_resolution": preview_mesh_resolution,
 		"preview_spline_resolution": preview_spline_resolution,
+		"max_draw_speed": max_draw_speed,
 	}
 	var fa := FileAccess.open(SETTINGS_PATH, FileAccess.WRITE)
 	if fa:

@@ -362,6 +362,8 @@ func _serialize_state(materialize_symmetry: bool = false) -> Dictionary:
 	return {
 		"version": JSON_VERSION,
 		"curve_smoothness": interaction.curve_smoothness,
+		"draw_sensitivity": interaction.draw_sensitivity,
+		"width_source": interaction.width_source,
 		"splines": splines_data,
 		"action_area_sizes": {
 			"left": interaction.left_action_area.radius,
@@ -445,6 +447,12 @@ func _restore_state(state: Dictionary) -> void:
 
 	# Restore curve smoothness
 	interaction.set_curve_smoothness(float(state.get("curve_smoothness", 0.5)))
+
+	# Restore width source / sensitivity (older files default to Pressure @ 0.5)
+	interaction.restore_draw_settings(
+		float(state.get("draw_sensitivity", 0.5)),
+		int(state.get("width_source", 0)),
+	)
 
 	# Restore action area sizes
 	var aa: Dictionary = state.get("action_area_sizes", {})

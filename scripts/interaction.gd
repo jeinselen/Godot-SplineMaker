@@ -22,6 +22,34 @@ enum Mode { SIZE, WEIGHT }
 var current_mode: Mode = Mode.SIZE
 var curve_smoothness: float = 0.5  # 0.0 = smoothest, 1.0 = tightest fit
 
+# Stroke-width source — Pressure (trigger travel) or Speed (hand velocity).
+# Applies globally to both controllers, like current_mode. Persisted per-project.
+enum WidthSource { PRESSURE, SPEED }
+var width_source: WidthSource = WidthSource.PRESSURE
+# Falloff sensitivity shared by both width sources. 0.5 reproduces the original
+# hard-coded squared curve; below 0.5 = less sensitive (needs more input for the
+# same width), above 0.5 = more sensitive (linear response lands around 0.75).
+var draw_sensitivity: float = 0.5
+
+## Sensitivity exponent sweep, anchored at the midpoint so 0.5 preserves the
+## original pow(input, 2) behavior. exponent = MID * RANGE^(1 - 2*sensitivity):
+## 0.5 -> ^2 (old squared), 0.0 -> ^8 (least sensitive), 1.0 -> ^0.5 (most
+## sensitive); linear (^1) falls near sensitivity 0.75.
+const SENSITIVITY_MID_EXP := 2.0
+const SENSITIVITY_RANGE := 4.0
+## When true, the sensitivity curve is passed through smoothstep to soften the
+## extreme ends (no abrupt start/stop in width). Left OFF for now — testing the
+## bare exponent first; flip to true to evaluate the softened variant.
+const SENSITIVITY_USE_SMOOTHSTEP := false
+
+# Real-world controller speed (m/s), low-pass filtered, for Speed width mode.
+# Filtered every frame in _process so a value is ready when a stroke begins.
+var _left_draw_speed: float = 0.0
+var _right_draw_speed: float = 0.0
+var _left_prev_world_pos: Vector3 = Vector3.ZERO
+var _right_prev_world_pos: Vector3 = Vector3.ZERO
+var _speed_tracking_initialized: bool = false
+
 # Snapping state — toggles and increments persist per-project (saved in
 # project_manager's serialized state).
 var snap_position_enabled: bool = false
@@ -42,6 +70,9 @@ signal mode_changed(mode: Mode)
 ## those are user-driven from the panel.
 signal snap_settings_changed
 signal symmetry_settings_changed
+## Fired after project_manager restores width-source / sensitivity state so the
+## panel can sync its slider and Pressure/Speed toggle.
+signal draw_settings_changed
 
 # Mirroring and radial symmetry are project-level virtual transforms. Spline
 # data stores only the authored points; SplineNode materializes editable copies.
@@ -162,6 +193,10 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	# Keep filtered controller speed current every frame so Speed-mode width has
+	# a settled value the instant a stroke begins.
+	_update_controller_speed(delta)
+
 	# --- Priority system ---
 	# 1. Hovered control points (highest) — blocks panel interaction entirely
 	# 2. Pointing at panel — blocks drawing and project space navigation
@@ -531,20 +566,74 @@ func _clear_draw_state(controller_id: int) -> void:
 
 
 func _get_draw_size(controller_id: int, action_area: ActionArea) -> float:
-	var trigger_val := _left_trigger_value if controller_id == CONTROLLER_ID_LEFT else _right_trigger_value
-	var trigger_floor := _left_trigger_floor if controller_id == CONTROLLER_ID_LEFT else _right_trigger_floor
-
-	# Remap from [floor, 1.0] to [0.0, 1.0] so full range is usable after click
-	var range_size := 1.0 - trigger_floor
-	var remapped := clampf((trigger_val - trigger_floor) / range_size, 0.0, 1.0) if range_size > 0.01 else 0.0
-
-	# Power curve for more control at the low end (square gives ~10% size at ~32% travel)
-	var curved := remapped * remapped
+	# Raw [0,1] width input: 0 = thinnest, 1 = thickest (full action-area radius).
+	# Pressure and Speed feed the same sensitivity curve so the rest of the
+	# pipeline is source-agnostic.
+	var input := _get_width_input(controller_id)
+	var curved := _apply_sensitivity(input)
 
 	var ps_scale := project_space.global_transform.basis.get_scale().x
 	var local_radius := action_area.radius / ps_scale if ps_scale > 0.0001 else action_area.radius
 	var min_size := local_radius * 0.01
 	return lerpf(min_size, local_radius, curved)
+
+
+## Returns the raw [0,1] width driver for the active source, before sensitivity.
+## 0 = thinnest stroke, 1 = thickest (full action-area radius).
+func _get_width_input(controller_id: int) -> float:
+	if width_source == WidthSource.SPEED:
+		var speed := _left_draw_speed if controller_id == CONTROLLER_ID_LEFT else _right_draw_speed
+		var max_speed: float = app_manager.settings.max_draw_speed
+		# Normalize speed to [0,1]; slow = thick, fast = thin (hence 1.0 - t).
+		var t := clampf(speed / max_speed, 0.0, 1.0) if max_speed > 0.0001 else 0.0
+		return 1.0 - t
+
+	# Pressure: remap trigger travel from [floor, 1.0] to [0.0, 1.0] so the full
+	# range is usable after the click that started the stroke.
+	var trigger_val := _left_trigger_value if controller_id == CONTROLLER_ID_LEFT else _right_trigger_value
+	var trigger_floor := _left_trigger_floor if controller_id == CONTROLLER_ID_LEFT else _right_trigger_floor
+	var range_size := 1.0 - trigger_floor
+	return clampf((trigger_val - trigger_floor) / range_size, 0.0, 1.0) if range_size > 0.01 else 0.0
+
+
+## Shapes a raw [0,1] width input by the shared sensitivity setting.
+## sensitivity 0.5 → pow(input, 2) (original squared curve); 0.0 → pow(input, 8)
+## (least sensitive); 1.0 → pow(input, 0.5) (most sensitive). The exponent sweeps
+## geometrically as MID * RANGE^(1 - 2*sensitivity), smooth through the midpoint.
+func _apply_sensitivity(input: float) -> float:
+	var clamped := clampf(input, 0.0, 1.0)
+	var s := clampf(draw_sensitivity, 0.0, 1.0)
+	var exponent := SENSITIVITY_MID_EXP * pow(SENSITIVITY_RANGE, 1.0 - 2.0 * s)
+	var curved := pow(clamped, exponent)
+	if SENSITIVITY_USE_SMOOTHSTEP:
+		# Soften both ends so width never starts or stops abruptly.
+		curved = smoothstep(0.0, 1.0, curved)
+	return curved
+
+
+## Low-pass filters each controller's real-world speed (m/s). Filtering strength
+## is tied to the Smooth slider — same expression draw_stroke uses for cursor lag
+## — so a higher Smooth setting calms width jitter in Speed mode.
+func _update_controller_speed(delta: float) -> void:
+	if delta <= 0.0:
+		return
+	var left_pos := left_controller.global_position
+	var right_pos := right_controller.global_position
+
+	if not _speed_tracking_initialized:
+		_left_prev_world_pos = left_pos
+		_right_prev_world_pos = right_pos
+		_speed_tracking_initialized = true
+		return
+
+	var left_raw := (left_pos - _left_prev_world_pos).length() / delta
+	var right_raw := (right_pos - _right_prev_world_pos).length() / delta
+	_left_prev_world_pos = left_pos
+	_right_prev_world_pos = right_pos
+
+	var follow := lerpf(0.12, 0.7, 1.0 - curve_smoothness)
+	_left_draw_speed = lerpf(_left_draw_speed, left_raw, follow)
+	_right_draw_speed = lerpf(_right_draw_speed, right_raw, follow)
 
 
 func _show_short_draw_warning(_controller_id: int) -> void:
@@ -893,6 +982,27 @@ func set_mode(mode: Mode) -> void:
 ## Set the curve accuracy for draw mode. Called by the panel slider.
 func set_curve_smoothness(value: float) -> void:
 	curve_smoothness = clampf(value, 0.0, 1.0)
+
+
+## Set the shared stroke-width sensitivity. Called by the panel slider.
+func set_draw_sensitivity(value: float) -> void:
+	draw_sensitivity = clampf(value, 0.0, 1.0)
+	project_manager.autosave()
+
+
+## Select the stroke-width source (Pressure or Speed). Called by the panel
+## toggle. Applies to both controllers.
+func set_width_source(source: WidthSource) -> void:
+	width_source = source
+	project_manager.autosave()
+
+
+## Called by project_manager after restoring saved state (open / undo / redo).
+## Fires draw_settings_changed so the panel can refresh its slider and toggle.
+func restore_draw_settings(sensitivity: float, source: int) -> void:
+	draw_sensitivity = clampf(sensitivity, 0.0, 1.0)
+	width_source = WidthSource.SPEED if source == WidthSource.SPEED else WidthSource.PRESSURE
+	draw_settings_changed.emit()
 
 
 # --- Snap helpers ---
