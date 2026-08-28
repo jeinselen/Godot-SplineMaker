@@ -216,7 +216,7 @@ func show_popup(text: String, color: Color = Color.WHITE, dismiss_time: float = 
 	var popup := XRPopup.create(text, color, dismiss_time)
 	get_tree().root.add_child(popup)
 	popup.setup(left_controller, right_controller)
-	popup.reset_position(xr_camera)
+	popup.reset_position(xr_camera, SettingsData.ALERT_OFFSET)
 	return popup
 
 

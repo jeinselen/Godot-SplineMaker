@@ -15,9 +15,11 @@ const SETTINGS_PATH := "user://settings.json"
 # Kept as constants, not saved settings, so tuning these here always takes effect
 # (a value persisted to settings.json would otherwise shadow it).
 
-## Menu / project panels (whichever panel is active).
+## Menu / project panels.
 const PANEL_OFFSET := Vector3(0.0, -0.25, 1.25)
-## Project space — the drawing itself.
+## Alert / popup panels.
+const ALERT_OFFSET := Vector3(0.0, -0.25, 1.0)
+## Project space.
 const PROJECT_OFFSET := Vector3(0.0, -0.5, 0.75)
 ## Gap between a panel and the virtual keyboard spawned beneath it. A genuine 1-D
 ## gap along the panel's down-axis, so it stays a scalar.
@@ -47,7 +49,7 @@ const STYLUS_ADJ_WEIGHT_SPAN := 5.0  # point weight
 
 # --- Misc UX ---------------------------------------------------------------
 ## Seconds a popup lingers before auto-dismissing (callers may override).
-const POPUP_DISMISS_TIME := 30.0
+const POPUP_DISMISS_TIME := 8.0
 ## Default action-area (interaction sphere) radius, in metres, before the user
 ## or a saved project overrides it.
 const ACTION_AREA_DEFAULT_SIZE := 0.1
