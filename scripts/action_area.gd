@@ -67,6 +67,14 @@ func update_size(joystick_y: float, delta: float) -> void:
 	_apply_radius()
 
 
+## Set the radius directly (used by the stylus drag-adjust). Clamps to bounds and
+## keeps the unsnapped accumulator in sync so a later joystick edit resumes cleanly.
+func set_radius(value: float) -> void:
+	radius = clampf(value, SIZE_MIN, SIZE_MAX)
+	_raw_radius = radius
+	_apply_radius()
+
+
 func set_highlight(highlighted: bool) -> void:
 	if highlighted:
 		_material.albedo_color = Color(1.0, 0.9, 0.3, 0.15)

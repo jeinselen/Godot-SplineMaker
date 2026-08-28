@@ -177,8 +177,12 @@ const CONTROLLER_ID_RIGHT := 1
 const STYLUS_GATE_ON := 0.05    # tip/side pressure to start a gesture
 const STYLUS_GATE_OFF := 0.025  # ...and the lower value to end it (hysteresis)
 const STYLUS_WIDTH_SMOOTH := 0.5  # EMA on pressure feeding stroke width
-const STYLUS_TAP_MAX_TIME := 0.22  # s — released within this (and still) = a tap
-const STYLUS_TAP_MAX_MOVE := 0.02  # m — moved less than this = "still"
+const STYLUS_HOLD_DELAY := 0.25   # s a crisp button is held before its hold action starts
+const STYLUS_TAP_MAX_MOVE := 0.02 # m — released still (under this) before the delay = a tap
+# Value change produced by one full stylus_joystick_range of left/right travel.
+const STYLUS_ADJ_AREA_SPAN := 0.15    # active-area radius (m)
+const STYLUS_ADJ_SIZE_SPAN := 0.1     # point size (m)
+const STYLUS_ADJ_WEIGHT_SPAN := 5.0   # point weight
 
 # Pressure group (tip/side share one gesture per hand)
 var _stylus_tip_raw: Array[float] = [0.0, 0.0]
@@ -188,20 +192,30 @@ var _stylus_side_gated: Array[bool] = [false, false]
 var _stylus_pressure_sm: Array[float] = [0.0, 0.0]
 var _stylus_press_active: Array[bool] = [false, false]
 var _stylus_press_gesture: Array[String] = ["", ""]  # "draw" | "grab" | "menu"
-var _stylus_menu_click: Array[bool] = [false, false]  # tip clicked a panel button
-var _stylus_menu_grab: Array[bool] = [false, false]   # side grabbed a panel
+var _stylus_menu_click: Array[bool] = [false, false]  # tip clicked a UI panel
+var _stylus_menu_grab: Array[bool] = [false, false]   # side grabbed a UI panel
 
-# Button group (front/back)
+# Button group (front/back): quick still tap vs. deferred hold
 var _stylus_front_mode: Array[String] = ["", ""]  # "empty" | "hover" | "menu"
-var _stylus_back_mode: Array[String] = ["", ""]   # "empty" | "hover" | "menu"
+var _stylus_back_mode: Array[String] = ["", ""]
 var _stylus_front_time: Array[float] = [0.0, 0.0]
 var _stylus_back_time: Array[float] = [0.0, 0.0]
 var _stylus_front_pos: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
 var _stylus_back_pos: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
-var _stylus_emu_origin: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
-var _stylus_emu_right: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
+var _stylus_front_started: Array[bool] = [false, false]  # front-hold adjust began
+var _stylus_back_started: Array[bool] = [false, false]   # back-hold navigate began
 
-# First-come mutual exclusion between the two groups, per hand.
+# Front-hold drag-adjust: direct displacement → value, with the selection locked.
+var _stylus_adjust_mode: Array[String] = ["", ""]  # "size" | "points"
+var _stylus_adjust_is_weight: Array[bool] = [false, false]
+var _stylus_adjust_start_radius: Array[float] = [0.0, 0.0]
+var _stylus_adjust_origin: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
+var _stylus_adjust_right: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
+var _stylus_hover_locked: Array[bool] = [false, false]
+var _stylus_adjust_points_l: Array[Dictionary] = []  # {spline, index, start}
+var _stylus_adjust_points_r: Array[Dictionary] = []
+
+# First-come mutual exclusion between the pressure and button groups, per hand.
 var _stylus_owner: Array[String] = ["", ""]  # "" | "press" | "button"
 
 
@@ -239,19 +253,22 @@ func _process(delta: float) -> void:
 	# a settled value the instant a stroke begins.
 	_update_controller_speed(delta)
 
-	# Feed the stylus front-hold "virtual joystick" before the joystick logic below.
-	_update_stylus_emulation(CONTROLLER_ID_LEFT)
-	_update_stylus_emulation(CONTROLLER_ID_RIGHT)
+	# Advance stylus crisp-button holds (deferred navigate / drag-adjust).
+	_update_stylus_hold(CONTROLLER_ID_LEFT)
+	_update_stylus_hold(CONTROLLER_ID_RIGHT)
 
 	# --- Priority system ---
 	# 1. Hovered control points (highest) — blocks panel interaction entirely
 	# 2. Pointing at panel — blocks drawing and project space navigation
 	# 3. Empty space (lowest) — drawing, action area resize, project space navigation
 
-	# Always run hover detection first (skip only when drawing or areas hidden)
-	if not _left_drawing and left_action_area.visible:
+	# Run hover detection unless this hand is mid-edit — while drawing, grabbing/
+	# moving points, extruding, or running a stylus drag-adjust, the highlighted
+	# selection is frozen so it can't bleed onto other points the moving action
+	# area passes over. (Applies uniformly to controllers and the stylus.)
+	if not _hover_locked(CONTROLLER_ID_LEFT) and left_action_area.visible:
 		_update_hover(CONTROLLER_ID_LEFT, left_controller, left_action_area)
-	if not _right_drawing and right_action_area.visible:
+	if not _hover_locked(CONTROLLER_ID_RIGHT) and right_action_area.visible:
 		_update_hover(CONTROLLER_ID_RIGHT, right_controller, right_action_area)
 
 	# Block panel interaction for controllers that have hovered points
@@ -284,12 +301,16 @@ func _process(delta: float) -> void:
 	if kb_active:
 		_end_joystick_edit_session(CONTROLLER_ID_LEFT)
 		_end_joystick_edit_session(CONTROLLER_ID_RIGHT)
-	if left_action_area.visible and not kb_active:
+	# The stylus drag-adjust drives size/width/weight directly, so skip the normal
+	# joystick handling for a hand while its adjust is active.
+	var left_adjusting := _stylus_adjust_mode[CONTROLLER_ID_LEFT] != ""
+	var right_adjusting := _stylus_adjust_mode[CONTROLLER_ID_RIGHT] != ""
+	if left_action_area.visible and not kb_active and not left_adjusting:
 		if left_hovering and not left_busy:
 			_update_joystick_edit(CONTROLLER_ID_LEFT, delta)
 		elif not left_on_panel and not left_busy:
 			left_action_area.update_size(_left_joystick.y, delta)
-	if right_action_area.visible and not kb_active:
+	if right_action_area.visible and not kb_active and not right_adjusting:
 		if right_hovering and not right_busy:
 			_update_joystick_edit(CONTROLLER_ID_RIGHT, delta)
 		elif not right_on_panel and not right_busy:
@@ -1437,14 +1458,12 @@ func _stylus_press_begin(hand: int) -> void:
 	match _stylus_context(hand):
 		"menu":
 			_stylus_press_gesture[hand] = "menu"
-			var panel: XRPanel = app_manager.active_panel
-			if panel and is_instance_valid(panel):
-				if _stylus_tip_gated[hand]:
-					panel.inject_click(hand, true)
-					_stylus_menu_click[hand] = true
-				if _stylus_side_gated[hand]:
-					panel.inject_grab(hand, true)
-					_stylus_menu_grab[hand] = true
+			if _stylus_tip_gated[hand]:
+				_stylus_ui_click(hand, true)
+				_stylus_menu_click[hand] = true
+			if _stylus_side_gated[hand]:
+				_stylus_ui_grab(hand, true)
+				_stylus_menu_grab[hand] = true
 		"hover":
 			# Grab/move points (grip). Extrude/insert is intentionally not on the stylus.
 			_stylus_press_gesture[hand] = "grab"
@@ -1462,12 +1481,10 @@ func _stylus_press_end(hand: int) -> void:
 		"grab":
 			_on_grip_released(hand)
 		"menu":
-			var panel: XRPanel = app_manager.active_panel
-			if panel and is_instance_valid(panel):
-				if _stylus_menu_click[hand]:
-					panel.inject_click(hand, false)
-				if _stylus_menu_grab[hand]:
-					panel.inject_grab(hand, false)
+			if _stylus_menu_click[hand]:
+				_stylus_ui_click(hand, false)
+			if _stylus_menu_grab[hand]:
+				_stylus_ui_grab(hand, false)
 			_stylus_menu_click[hand] = false
 			_stylus_menu_grab[hand] = false
 	_stylus_press_gesture[hand] = ""
@@ -1475,7 +1492,7 @@ func _stylus_press_end(hand: int) -> void:
 		_stylus_owner[hand] = ""
 
 
-# --- Button group (front / back) ---
+# --- Button group (front / back): quick still tap vs. deferred hold ---
 
 func _stylus_button_press(hand: int, is_front: bool) -> void:
 	# First-come exclusion: a pressure gesture in progress blocks the buttons.
@@ -1489,23 +1506,40 @@ func _stylus_button_press(hand: int, is_front: bool) -> void:
 		_stylus_front_time[hand] = now
 		_stylus_front_pos[hand] = pos
 		_stylus_front_mode[hand] = ctx
-		match ctx:
-			"menu":
-				_stylus_panel_click_now(hand, true)
-			_:  # empty or hover — begin joystick emulation (active-area / width-weight)
-				_stylus_emu_begin(hand)
+		_stylus_front_started[hand] = false
+		if ctx == "menu":
+			_stylus_ui_click(hand, true)  # front on a menu = click buttons
+		# empty / hover: the hold (drag-adjust) starts later, after STYLUS_HOLD_DELAY
 	else:
 		_stylus_back_time[hand] = now
 		_stylus_back_pos[hand] = pos
 		_stylus_back_mode[hand] = ctx
+		_stylus_back_started[hand] = false
 		match ctx:
 			"menu":
-				_stylus_panel_click_now(hand, true)
+				_stylus_ui_grab(hand, true)  # back on a menu (or any UI) = move the panel
 			"hover":
-				_on_delete_pressed(hand)  # immediate
-			_:  # empty — optimistically begin navigation; a quick still tap becomes undo
-				if navigation:
-					navigation._on_grip_pressed(_controller_node(hand))
+				_on_delete_pressed(hand)     # immediate delete
+			# empty: navigate starts later, after STYLUS_HOLD_DELAY
+
+
+## Every frame: promote a held crisp button to its hold action once the delay
+## passes (so a quick tap never nudges anything), then drive the front drag-adjust.
+func _update_stylus_hold(hand: int) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	var fm := _stylus_front_mode[hand]
+	if fm == "empty" or fm == "hover":
+		if not _stylus_front_started[hand]:
+			if now - _stylus_front_time[hand] >= STYLUS_HOLD_DELAY:
+				_stylus_front_started[hand] = true
+				_stylus_adjust_begin(hand, fm)
+		else:
+			_stylus_adjust_apply(hand)
+	if _stylus_back_mode[hand] == "empty" and not _stylus_back_started[hand]:
+		if now - _stylus_back_time[hand] >= STYLUS_HOLD_DELAY:
+			_stylus_back_started[hand] = true
+			if navigation:
+				navigation._on_grip_pressed(_controller_node(hand))
 
 
 func _stylus_button_release(hand: int, is_front: bool) -> void:
@@ -1514,77 +1548,140 @@ func _stylus_button_release(hand: int, is_front: bool) -> void:
 		_stylus_front_mode[hand] = ""
 		match mode:
 			"menu":
-				_stylus_panel_click_now(hand, false)
-			"empty":
-				_stylus_emu_end(hand)
-				if _stylus_was_tap(hand, _stylus_front_time[hand], _stylus_front_pos[hand]) and not is_input_active():
+				_stylus_ui_click(hand, false)
+			"empty", "hover":
+				if _stylus_front_started[hand]:
+					_stylus_adjust_end(hand)
+				elif _stylus_still_tap(hand, _stylus_front_pos[hand]) and not is_input_active():
 					project_manager.redo()
-			"hover":
-				_stylus_emu_end(hand)
+		_stylus_front_started[hand] = false
 	else:
 		var mode := _stylus_back_mode[hand]
 		_stylus_back_mode[hand] = ""
 		match mode:
 			"menu":
-				_stylus_panel_click_now(hand, false)
+				_stylus_ui_grab(hand, false)
 			"empty":
-				if navigation:
-					navigation._on_grip_released(_controller_node(hand))
-				if _stylus_was_tap(hand, _stylus_back_time[hand], _stylus_back_pos[hand]) and not is_input_active():
+				if _stylus_back_started[hand]:
+					if navigation:
+						navigation._on_grip_released(_controller_node(hand))
+				elif _stylus_still_tap(hand, _stylus_back_pos[hand]) and not is_input_active():
 					project_manager.undo()
 			# "hover": delete already fired on press
+		_stylus_back_started[hand] = false
 	# Release ownership only once both crisp buttons are up.
 	if _stylus_front_mode[hand] == "" and _stylus_back_mode[hand] == "" and _stylus_owner[hand] == "button":
 		_stylus_owner[hand] = ""
 
 
-## Optimistic tap test: released quickly and without moving the stylus much.
-func _stylus_was_tap(hand: int, press_time: float, press_pos: Vector3) -> bool:
-	var held := Time.get_ticks_msec() / 1000.0 - press_time
-	var moved := _controller_node(hand).global_position.distance_to(press_pos)
-	return held <= STYLUS_TAP_MAX_TIME and moved <= STYLUS_TAP_MAX_MOVE
+## A tap = released before the hold delay AND without moving the stylus far.
+func _stylus_still_tap(hand: int, press_pos: Vector3) -> bool:
+	return _controller_node(hand).global_position.distance_to(press_pos) <= STYLUS_TAP_MAX_MOVE
 
 
-func _stylus_panel_click_now(hand: int, pressed: bool) -> void:
-	var panel: XRPanel = app_manager.active_panel
-	if panel and is_instance_valid(panel):
-		panel.inject_click(hand, pressed)
+# --- Front-hold drag-adjust (direct displacement -> value, selection locked) ---
 
-
-# --- Front-hold joystick emulation ---
-
-## Capture the reference point and the (view-relative) right axis at hold start.
-func _stylus_emu_begin(hand: int) -> void:
-	_stylus_emu_origin[hand] = _controller_node(hand).global_position
+func _stylus_adjust_begin(hand: int, ctx: String) -> void:
+	_stylus_adjust_origin[hand] = _controller_node(hand).global_position
 	var cam: XRCamera3D = app_manager.xr_camera
-	_stylus_emu_right[hand] = cam.global_transform.basis.x if cam else Vector3.RIGHT
+	_stylus_adjust_right[hand] = cam.global_transform.basis.x if cam else Vector3.RIGHT
+	if ctx == "hover":
+		_stylus_adjust_mode[hand] = "points"
+		_stylus_adjust_is_weight[hand] = current_mode == Mode.WEIGHT
+		var pts: Array[Dictionary] = []
+		for entry in _canonical_hover_set(_get_hover_set(hand)):
+			var sn := entry["spline"] as SplineNode
+			var idx: int = entry["index"]
+			var start_val: float = sn.data.weights[idx] if current_mode == Mode.WEIGHT else sn.data.sizes[idx]
+			pts.append({"spline": sn, "index": idx, "start": start_val})
+		_set_adjust_points(hand, pts)
+		_stylus_hover_locked[hand] = true  # freeze the selection while dragging
+	else:  # empty — resize the active area
+		_stylus_adjust_mode[hand] = "size"
+		_stylus_adjust_start_radius[hand] = _action_area(hand).radius
 
 
-func _stylus_emu_end(hand: int) -> void:
-	if hand == CONTROLLER_ID_LEFT:
-		_left_joystick = Vector2.ZERO
-	else:
-		_right_joystick = Vector2.ZERO
-
-
-## While front is held, map left/right stylus motion onto a virtual joystick Y so
-## the existing _process joystick logic resizes the active area (empty) or edits
-## point width/weight (hovering). Called every frame from _process.
-func _update_stylus_emulation(hand: int) -> void:
-	var mode := _stylus_front_mode[hand]
-	if mode != "empty" and mode != "hover":
-		return
-	var disp := (_controller_node(hand).global_position - _stylus_emu_origin[hand]).dot(_stylus_emu_right[hand])
+func _stylus_adjust_apply(hand: int) -> void:
+	var disp := (_controller_node(hand).global_position - _stylus_adjust_origin[hand]).dot(_stylus_adjust_right[hand])
 	var travel: float = app_manager.settings.stylus_joystick_range
-	var y := clampf(disp / travel, -1.0, 1.0) if travel > 0.001 else 0.0
+	var norm := disp / travel if travel > 0.001 else 0.0
+	if _stylus_adjust_mode[hand] == "size":
+		var r := _stylus_adjust_start_radius[hand] + norm * STYLUS_ADJ_AREA_SPAN
+		if snap_size_enabled and snap_size_step > 0.0:
+			r = round(r / snap_size_step) * snap_size_step
+		_action_area(hand).set_radius(r)
+	elif _stylus_adjust_mode[hand] == "points":
+		var is_w := _stylus_adjust_is_weight[hand]
+		var span := STYLUS_ADJ_WEIGHT_SPAN if is_w else STYLUS_ADJ_SIZE_SPAN
+		var pts := _get_adjust_points(hand)
+		var first := 0.0
+		for i in pts.size():
+			var e: Dictionary = pts[i]
+			var sn := e["spline"] as SplineNode
+			var idx: int = e["index"]
+			var target: float = float(e["start"]) + norm * span
+			var snapped: float
+			if is_w:
+				snapped = snap_weight_value(target)
+				sn.data.weights[idx] = snapped
+			else:
+				snapped = snap_size_value(target)
+				sn.data.sizes[idx] = snapped
+			sn.mark_dirty()
+			if i == 0:
+				first = snapped
+		_joystick_edited = true
+		_update_value_label(hand, first)
+
+
+func _stylus_adjust_end(hand: int) -> void:
+	var was_points := _stylus_adjust_mode[hand] == "points"
+	_stylus_adjust_mode[hand] = ""
+	_stylus_hover_locked[hand] = false
+	_set_adjust_points(hand, [])
+	if was_points:
+		_hide_value_label(hand)
+		project_manager.autosave()
+
+
+func _get_adjust_points(hand: int) -> Array[Dictionary]:
+	return _stylus_adjust_points_l if hand == CONTROLLER_ID_LEFT else _stylus_adjust_points_r
+
+
+func _set_adjust_points(hand: int, pts: Array[Dictionary]) -> void:
 	if hand == CONTROLLER_ID_LEFT:
-		_left_joystick = Vector2(0.0, y)
+		_stylus_adjust_points_l = pts
 	else:
-		_right_joystick = Vector2(0.0, y)
+		_stylus_adjust_points_r = pts
+
+
+func _action_area(hand: int) -> ActionArea:
+	return left_action_area if hand == CONTROLLER_ID_LEFT else right_action_area
+
+
+# --- Stylus UI targeting (menus, popups, keyboards — all XRPanel) ---
+
+func _stylus_ui_click(hand: int, pressed: bool) -> void:
+	for p in get_tree().get_nodes_in_group("xr_panels"):
+		if p is XRPanel and is_instance_valid(p):
+			(p as XRPanel).inject_click(hand, pressed)
+
+
+func _stylus_ui_grab(hand: int, pressed: bool) -> void:
+	for p in get_tree().get_nodes_in_group("xr_panels"):
+		if p is XRPanel and is_instance_valid(p):
+			(p as XRPanel).inject_grab(hand, pressed)
+
+
+func _stylus_pointing_at_ui(hand: int) -> bool:
+	for p in get_tree().get_nodes_in_group("xr_panels"):
+		if p is XRPanel and is_instance_valid(p) and (p as XRPanel).is_controller_pointing(hand):
+			return true
+	return false
 
 
 func _stylus_context(hand: int) -> String:
-	if app_manager.is_pointing_at_panel(hand):
+	if _stylus_pointing_at_ui(hand):
 		return "menu"
 	if not _get_hover_set(hand).is_empty():
 		return "hover"
@@ -1593,6 +1690,15 @@ func _stylus_context(hand: int) -> String:
 
 func _controller_node(hand: int) -> XRController3D:
 	return left_controller if hand == CONTROLLER_ID_LEFT else right_controller
+
+
+## True while a hand is mid-edit, so hover detection is paused and the highlighted
+## selection stays frozen: drawing, grip-moving points, extruding, or a stylus
+## drag-adjust. Keeps highlights from bleeding onto points the moving area passes.
+func _hover_locked(hand: int) -> bool:
+	if hand == CONTROLLER_ID_LEFT:
+		return _left_drawing or _left_grip_translating or not _left_extruding.is_empty() or _stylus_hover_locked[CONTROLLER_ID_LEFT]
+	return _right_drawing or _right_grip_translating or not _right_extruding.is_empty() or _stylus_hover_locked[CONTROLLER_ID_RIGHT]
 
 
 ## Docking (or any hard reset) ends any in-progress stylus gesture cleanly so the
@@ -1604,6 +1710,9 @@ func _stylus_reset(hand: int) -> void:
 		_stylus_button_release(hand, true)
 	if _stylus_back_mode[hand] != "":
 		_stylus_button_release(hand, false)
+	_stylus_adjust_mode[hand] = ""
+	_stylus_hover_locked[hand] = false
+	_set_adjust_points(hand, [])
 	_stylus_owner[hand] = ""
 	_stylus_tip_raw[hand] = 0.0
 	_stylus_side_raw[hand] = 0.0

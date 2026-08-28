@@ -95,6 +95,10 @@ func setup(left_ctrl: XRController3D, right_ctrl: XRController3D) -> void:
 	_left_controller = left_ctrl
 	_right_controller = right_ctrl
 
+	# All UI surfaces (menus, popups, keyboards) share this group so the MX Ink
+	# stylus can drive whichever one it points at, not just the main panel.
+	add_to_group("xr_panels")
+
 	# Connect grip signals for grab detection
 	_safe_connect(_left_controller.button_pressed, _on_controller_button_pressed.bind(0))
 	_safe_connect(_left_controller.button_released, _on_controller_button_released.bind(0))
