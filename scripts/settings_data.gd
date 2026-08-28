@@ -15,6 +15,10 @@ var preview_spline_resolution: int = 8
 # mode. Slow movement draws thick (full action-area radius); movement at or
 # above this speed draws thin. Tuned so a comfortable arm stroke reaches max.
 var max_draw_speed: float = 1.2
+# Left/right stylus travel (metres) that maps to full deflection of the front-hold
+# virtual joystick. Smaller = more sensitive. Used for active-area size and point
+# width/weight adjustment when driving those with the MX Ink stylus.
+var stylus_joystick_range: float = 0.15
 
 
 func load_from_file() -> void:
@@ -34,6 +38,7 @@ func load_from_file() -> void:
 	preview_mesh_resolution = clampi(int(d.get("preview_mesh_resolution", 8)), 3, 32)
 	preview_spline_resolution = clampi(int(d.get("preview_spline_resolution", 8)), 1, 32)
 	max_draw_speed = clampf(float(d.get("max_draw_speed", 1.2)), 0.1, 3.0)
+	stylus_joystick_range = clampf(float(d.get("stylus_joystick_range", 0.15)), 0.02, 1.0)
 
 
 func save_to_file() -> void:
@@ -45,6 +50,7 @@ func save_to_file() -> void:
 		"preview_mesh_resolution": preview_mesh_resolution,
 		"preview_spline_resolution": preview_spline_resolution,
 		"max_draw_speed": max_draw_speed,
+		"stylus_joystick_range": stylus_joystick_range,
 	}
 	var fa := FileAccess.open(SETTINGS_PATH, FileAccess.WRITE)
 	if fa:

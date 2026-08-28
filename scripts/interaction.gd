@@ -8,6 +8,7 @@ extends Node3D
 @onready var project_space: Node3D = %ProjectSpace
 @onready var project_manager: Node = %ProjectManager
 @onready var app_manager: Node = %AppManager
+@onready var navigation: Node = get_parent().get_node_or_null("Navigation")
 
 var left_action_area: ActionArea
 var right_action_area: ActionArea
@@ -162,6 +163,47 @@ const HAPTIC_BUZZ_DURATION := 0.02
 const CONTROLLER_ID_LEFT := 0
 const CONTROLLER_ID_RIGHT := 1
 
+# --- MX Ink stylus (standalone, per-hand — "Stylus Native") ---
+# The stylus reports on whichever hand holds it and emits stylus_* actions no
+# ordinary controller sends, so it's handled entirely per-hand (ambidextrous, no
+# coupling). Two input groups, mutually exclusive on a first-come basis per hand:
+#   Pressure group (tip/side, squishy): empty=draw, hovering=grab/rotate points,
+#     menu: tip=click / side=grab panel. Extrude is intentionally NOT on the stylus.
+#   Button group (front/back, crisp): a quick still tap = redo/undo; a hold =
+#     continuous mode. Front-hold = joystick emulation (L/R motion → active-area
+#     size when empty, point width/weight when hovering). Back-hold = navigate the
+#     view (grip; combine with a controller grip for dual-grip move/rotate/scale).
+#     Hovering: front = width/weight adjust, back = delete. Menu: both click.
+const STYLUS_GATE_ON := 0.05    # tip/side pressure to start a gesture
+const STYLUS_GATE_OFF := 0.025  # ...and the lower value to end it (hysteresis)
+const STYLUS_WIDTH_SMOOTH := 0.5  # EMA on pressure feeding stroke width
+const STYLUS_TAP_MAX_TIME := 0.22  # s — released within this (and still) = a tap
+const STYLUS_TAP_MAX_MOVE := 0.02  # m — moved less than this = "still"
+
+# Pressure group (tip/side share one gesture per hand)
+var _stylus_tip_raw: Array[float] = [0.0, 0.0]
+var _stylus_side_raw: Array[float] = [0.0, 0.0]
+var _stylus_tip_gated: Array[bool] = [false, false]
+var _stylus_side_gated: Array[bool] = [false, false]
+var _stylus_pressure_sm: Array[float] = [0.0, 0.0]
+var _stylus_press_active: Array[bool] = [false, false]
+var _stylus_press_gesture: Array[String] = ["", ""]  # "draw" | "grab" | "menu"
+var _stylus_menu_click: Array[bool] = [false, false]  # tip clicked a panel button
+var _stylus_menu_grab: Array[bool] = [false, false]   # side grabbed a panel
+
+# Button group (front/back)
+var _stylus_front_mode: Array[String] = ["", ""]  # "empty" | "hover" | "menu"
+var _stylus_back_mode: Array[String] = ["", ""]   # "empty" | "hover" | "menu"
+var _stylus_front_time: Array[float] = [0.0, 0.0]
+var _stylus_back_time: Array[float] = [0.0, 0.0]
+var _stylus_front_pos: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
+var _stylus_back_pos: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
+var _stylus_emu_origin: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
+var _stylus_emu_right: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
+
+# First-come mutual exclusion between the two groups, per hand.
+var _stylus_owner: Array[String] = ["", ""]  # "" | "press" | "button"
+
 
 func _ready() -> void:
 	# Create action areas as children of controllers
@@ -196,6 +238,10 @@ func _process(delta: float) -> void:
 	# Keep filtered controller speed current every frame so Speed-mode width has
 	# a settled value the instant a stroke begins.
 	_update_controller_speed(delta)
+
+	# Feed the stylus front-hold "virtual joystick" before the joystick logic below.
+	_update_stylus_emulation(CONTROLLER_ID_LEFT)
+	_update_stylus_emulation(CONTROLLER_ID_RIGHT)
 
 	# --- Priority system ---
 	# 1. Hovered control points (highest) — blocks panel interaction entirely
@@ -1237,6 +1283,12 @@ func _on_button_pressed(button_name: String, controller_id: int) -> void:
 		_on_trigger_pressed(controller_id)
 	elif button_name == "grip_click":
 		_on_grip_pressed(controller_id)
+	elif button_name == "stylus_front":
+		_stylus_button_press(controller_id, true)
+	elif button_name == "stylus_back":
+		_stylus_button_press(controller_id, false)
+	elif button_name == "stylus_docked":
+		_stylus_reset(controller_id)
 	elif button_name == "ax_button":
 		var hover_set := _canonical_hover_set(_get_hover_set(controller_id))
 		if not hover_set.is_empty() and left_action_area.visible:
@@ -1253,6 +1305,10 @@ func _on_button_released(button_name: String, controller_id: int) -> void:
 		_on_trigger_released(controller_id)
 	elif button_name == "grip_click":
 		_on_grip_released(controller_id)
+	elif button_name == "stylus_front":
+		_stylus_button_release(controller_id, true)
+	elif button_name == "stylus_back":
+		_stylus_button_release(controller_id, false)
 
 
 func _on_float_changed(input_name: String, value: float, controller_id: int) -> void:
@@ -1261,6 +1317,10 @@ func _on_float_changed(input_name: String, value: float, controller_id: int) -> 
 			_left_trigger_value = value
 		else:
 			_right_trigger_value = value
+	elif input_name == "stylus_tip":
+		_stylus_pressure_changed(controller_id, true, value)
+	elif input_name == "stylus_side":
+		_stylus_pressure_changed(controller_id, false, value)
 
 
 func _on_vector2_changed(input_name: String, value: Vector2, controller_id: int) -> void:
@@ -1329,6 +1389,227 @@ func _on_trigger_released(controller_id: int) -> void:
 			_right_extruding = []
 		project_manager.autosave()
 		return
+
+
+# --- MX Ink stylus routing (standalone, per-hand) ---
+
+# --- Pressure group (tip / side) ---
+
+## Tip/side pressure changed. Smooths pressure into the width pipeline, updates
+## each actuator's gate, and starts/ends the single shared pressure gesture.
+func _stylus_pressure_changed(hand: int, is_tip: bool, value: float) -> void:
+	if is_tip:
+		_stylus_tip_raw[hand] = value
+	else:
+		_stylus_side_raw[hand] = value
+
+	var raw := maxf(_stylus_tip_raw[hand], _stylus_side_raw[hand])
+	_stylus_pressure_sm[hand] = lerpf(_stylus_pressure_sm[hand], raw, STYLUS_WIDTH_SMOOTH)
+	if hand == CONTROLLER_ID_LEFT:
+		_left_trigger_value = _stylus_pressure_sm[hand]
+	else:
+		_right_trigger_value = _stylus_pressure_sm[hand]
+
+	_stylus_update_gate(hand, is_tip)
+
+	var down := _stylus_tip_gated[hand] or _stylus_side_gated[hand]
+	if down and not _stylus_press_active[hand]:
+		_stylus_press_begin(hand)
+	elif not down and _stylus_press_active[hand]:
+		_stylus_press_end(hand)
+
+
+func _stylus_update_gate(hand: int, is_tip: bool) -> void:
+	var raw: float = _stylus_tip_raw[hand] if is_tip else _stylus_side_raw[hand]
+	var gated: Array[bool] = _stylus_tip_gated if is_tip else _stylus_side_gated
+	if not gated[hand] and raw >= STYLUS_GATE_ON:
+		gated[hand] = true
+	elif gated[hand] and raw < STYLUS_GATE_OFF:
+		gated[hand] = false
+
+
+func _stylus_press_begin(hand: int) -> void:
+	# First-come exclusion: a crisp button in progress blocks the pressure group.
+	if _stylus_owner[hand] == "button":
+		return
+	_stylus_owner[hand] = "press"
+	_stylus_press_active[hand] = true
+	match _stylus_context(hand):
+		"menu":
+			_stylus_press_gesture[hand] = "menu"
+			var panel: XRPanel = app_manager.active_panel
+			if panel and is_instance_valid(panel):
+				if _stylus_tip_gated[hand]:
+					panel.inject_click(hand, true)
+					_stylus_menu_click[hand] = true
+				if _stylus_side_gated[hand]:
+					panel.inject_grab(hand, true)
+					_stylus_menu_grab[hand] = true
+		"hover":
+			# Grab/move points (grip). Extrude/insert is intentionally not on the stylus.
+			_stylus_press_gesture[hand] = "grab"
+			_on_grip_pressed(hand)
+		_:  # empty
+			_stylus_press_gesture[hand] = "draw"
+			_on_trigger_pressed(hand)
+
+
+func _stylus_press_end(hand: int) -> void:
+	_stylus_press_active[hand] = false
+	match _stylus_press_gesture[hand]:
+		"draw":
+			_on_trigger_released(hand)
+		"grab":
+			_on_grip_released(hand)
+		"menu":
+			var panel: XRPanel = app_manager.active_panel
+			if panel and is_instance_valid(panel):
+				if _stylus_menu_click[hand]:
+					panel.inject_click(hand, false)
+				if _stylus_menu_grab[hand]:
+					panel.inject_grab(hand, false)
+			_stylus_menu_click[hand] = false
+			_stylus_menu_grab[hand] = false
+	_stylus_press_gesture[hand] = ""
+	if _stylus_owner[hand] == "press":
+		_stylus_owner[hand] = ""
+
+
+# --- Button group (front / back) ---
+
+func _stylus_button_press(hand: int, is_front: bool) -> void:
+	# First-come exclusion: a pressure gesture in progress blocks the buttons.
+	if _stylus_owner[hand] == "press":
+		return
+	_stylus_owner[hand] = "button"
+	var ctx := _stylus_context(hand)
+	var now := Time.get_ticks_msec() / 1000.0
+	var pos := _controller_node(hand).global_position
+	if is_front:
+		_stylus_front_time[hand] = now
+		_stylus_front_pos[hand] = pos
+		_stylus_front_mode[hand] = ctx
+		match ctx:
+			"menu":
+				_stylus_panel_click_now(hand, true)
+			_:  # empty or hover — begin joystick emulation (active-area / width-weight)
+				_stylus_emu_begin(hand)
+	else:
+		_stylus_back_time[hand] = now
+		_stylus_back_pos[hand] = pos
+		_stylus_back_mode[hand] = ctx
+		match ctx:
+			"menu":
+				_stylus_panel_click_now(hand, true)
+			"hover":
+				_on_delete_pressed(hand)  # immediate
+			_:  # empty — optimistically begin navigation; a quick still tap becomes undo
+				if navigation:
+					navigation._on_grip_pressed(_controller_node(hand))
+
+
+func _stylus_button_release(hand: int, is_front: bool) -> void:
+	if is_front:
+		var mode := _stylus_front_mode[hand]
+		_stylus_front_mode[hand] = ""
+		match mode:
+			"menu":
+				_stylus_panel_click_now(hand, false)
+			"empty":
+				_stylus_emu_end(hand)
+				if _stylus_was_tap(hand, _stylus_front_time[hand], _stylus_front_pos[hand]) and not is_input_active():
+					project_manager.redo()
+			"hover":
+				_stylus_emu_end(hand)
+	else:
+		var mode := _stylus_back_mode[hand]
+		_stylus_back_mode[hand] = ""
+		match mode:
+			"menu":
+				_stylus_panel_click_now(hand, false)
+			"empty":
+				if navigation:
+					navigation._on_grip_released(_controller_node(hand))
+				if _stylus_was_tap(hand, _stylus_back_time[hand], _stylus_back_pos[hand]) and not is_input_active():
+					project_manager.undo()
+			# "hover": delete already fired on press
+	# Release ownership only once both crisp buttons are up.
+	if _stylus_front_mode[hand] == "" and _stylus_back_mode[hand] == "" and _stylus_owner[hand] == "button":
+		_stylus_owner[hand] = ""
+
+
+## Optimistic tap test: released quickly and without moving the stylus much.
+func _stylus_was_tap(hand: int, press_time: float, press_pos: Vector3) -> bool:
+	var held := Time.get_ticks_msec() / 1000.0 - press_time
+	var moved := _controller_node(hand).global_position.distance_to(press_pos)
+	return held <= STYLUS_TAP_MAX_TIME and moved <= STYLUS_TAP_MAX_MOVE
+
+
+func _stylus_panel_click_now(hand: int, pressed: bool) -> void:
+	var panel: XRPanel = app_manager.active_panel
+	if panel and is_instance_valid(panel):
+		panel.inject_click(hand, pressed)
+
+
+# --- Front-hold joystick emulation ---
+
+## Capture the reference point and the (view-relative) right axis at hold start.
+func _stylus_emu_begin(hand: int) -> void:
+	_stylus_emu_origin[hand] = _controller_node(hand).global_position
+	var cam: XRCamera3D = app_manager.xr_camera
+	_stylus_emu_right[hand] = cam.global_transform.basis.x if cam else Vector3.RIGHT
+
+
+func _stylus_emu_end(hand: int) -> void:
+	if hand == CONTROLLER_ID_LEFT:
+		_left_joystick = Vector2.ZERO
+	else:
+		_right_joystick = Vector2.ZERO
+
+
+## While front is held, map left/right stylus motion onto a virtual joystick Y so
+## the existing _process joystick logic resizes the active area (empty) or edits
+## point width/weight (hovering). Called every frame from _process.
+func _update_stylus_emulation(hand: int) -> void:
+	var mode := _stylus_front_mode[hand]
+	if mode != "empty" and mode != "hover":
+		return
+	var disp := (_controller_node(hand).global_position - _stylus_emu_origin[hand]).dot(_stylus_emu_right[hand])
+	var travel: float = app_manager.settings.stylus_joystick_range
+	var y := clampf(disp / travel, -1.0, 1.0) if travel > 0.001 else 0.0
+	if hand == CONTROLLER_ID_LEFT:
+		_left_joystick = Vector2(0.0, y)
+	else:
+		_right_joystick = Vector2(0.0, y)
+
+
+func _stylus_context(hand: int) -> String:
+	if app_manager.is_pointing_at_panel(hand):
+		return "menu"
+	if not _get_hover_set(hand).is_empty():
+		return "hover"
+	return "empty"
+
+
+func _controller_node(hand: int) -> XRController3D:
+	return left_controller if hand == CONTROLLER_ID_LEFT else right_controller
+
+
+## Docking (or any hard reset) ends any in-progress stylus gesture cleanly so the
+## per-hand state can't get stuck if the stylus is put away mid-action.
+func _stylus_reset(hand: int) -> void:
+	if _stylus_press_active[hand]:
+		_stylus_press_end(hand)
+	if _stylus_front_mode[hand] != "":
+		_stylus_button_release(hand, true)
+	if _stylus_back_mode[hand] != "":
+		_stylus_button_release(hand, false)
+	_stylus_owner[hand] = ""
+	_stylus_tip_raw[hand] = 0.0
+	_stylus_side_raw[hand] = 0.0
+	_stylus_tip_gated[hand] = false
+	_stylus_side_gated[hand] = false
+	_stylus_pressure_sm[hand] = 0.0
 
 
 # --- Grip-based point translation ---

@@ -427,6 +427,24 @@ func _on_trigger_release_for_click(button_name: String, controller_id: int) -> v
 	_mouse_pressed[controller_id] = false
 
 
+## Public hooks so interaction.gd can drive a panel from the MX Ink stylus, which
+## has no trigger_click / grip_click of its own. They funnel into the same guarded
+## paths the controllers use (pointing/blocked/edge checks included), so calling
+## them while not pointing at the panel is a harmless no-op.
+func inject_click(controller_id: int, pressed: bool) -> void:
+	if pressed:
+		_on_trigger_for_click("trigger_click", controller_id)
+	else:
+		_on_trigger_release_for_click("trigger_click", controller_id)
+
+
+func inject_grab(controller_id: int, pressed: bool) -> void:
+	if pressed:
+		_on_controller_button_pressed("grip_click", controller_id)
+	else:
+		_on_controller_button_released("grip_click", controller_id)
+
+
 func _inject_mouse_button(controller_id: int, pressed: bool) -> void:
 	var uv := _hit_uv[controller_id]
 	var vp_pos := Vector2(uv.x * panel_size.x, uv.y * panel_size.y)
