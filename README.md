@@ -14,6 +14,7 @@ Projects export as clean `.json` files when closed. Blender import/export is han
 - Stroke width from **pressure or drawing speed**, shaped by a **sensitivity** curve
 - Trigger-based endpoint extrusion and midpoint insertion
 - Grip-based point transforms (translate, rotate, scale relative to the controller)
+- Toggleable **upright view lock** and **point orientation lock** for clean, axis-constrained moves
 - Joystick per-point `size` and `weight` editing with on-screen numeric feedback
 - **Mirror and radial symmetry** (per-project, live)
 - **Position / size / weight snapping** with adjustable steps
@@ -42,12 +43,13 @@ Both controllers behave the same — usage is ambidextrous and independent. The 
   - `Trigger` = draw a new spline (pressure/speed sets stroke width; the `Smoothing` slider controls point density)
   - `Joystick` = adjust size of the action area
   - `Grip` = move and rotate the project space (both grips together = move, rotate, and scale)
-  - `Grip` + `Trigger` (same controller) = snap the view upright and rotate around the vertical axis only, for straightening on demand
+  - `Grip` + `Trigger` (same controller) = toggle **upright lock**: snap the view upright and rotate around the vertical axis only; press `Trigger` again to return to free rotation. Because it's a toggle, you can release the grip while still upright without fumbling the trigger first.
   - `A`/`X` = undo, `B`/`Y` = redo
 - **Points** (when one or more are within the controller's active area)
   - `Trigger` = extrude endpoints or insert a midpoint (endpoints take priority; if only midpoints are in range, the lowest-index one is used)
   - `Joystick` = adjust point size or weight (mode set in the project panel)
   - `Grip` = move and rotate the active point(s); hold `Grip` + `Joystick` to scale multiple points
+  - `Grip` + `Trigger` (same controller) = toggle **orientation lock** while moving: freeze the points at their original orientation (translate and scale only, no rotation); press `Trigger` again to resume rotation
   - `A`/`X` = delete point(s) in the action area
 
 ## MX Ink Stylus
@@ -64,7 +66,8 @@ The Logitech MX Ink stylus is supported natively on **Quest 3 / 3S (Meta OS v68+
 - **Back button**
   - Quick tap = undo
   - Hold = navigate the view (combine with a controller grip for move/rotate/scale); while hovering = delete points
-  - Hold to navigate + press the side pad = snap the view upright and rotate around the vertical axis only
+  - Hold to navigate, then press the side pad = toggle **upright lock** (rotate around the vertical axis only); press the side pad again to release
+  - Press during a point-grab drag (tip or side pad) = toggle **orientation lock**, freezing the points at their original orientation; press again to resume rotation
 
 ## Settings
 

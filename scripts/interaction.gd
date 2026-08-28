@@ -173,8 +173,10 @@ const CONTROLLER_ID_RIGHT := 1
 #   Button group (front/back, crisp): a quick still tap = redo/undo; a hold =
 #     continuous mode. Front-hold = joystick emulation (L/R motion → active-area
 #     size when empty, point width/weight when hovering). Back-hold = navigate the
-#     view (grip; combine with a controller grip for dual-grip move/rotate/scale).
-#     Hovering: front = width/weight adjust, back = delete. Menu: both click.
+#     view (grip; combine with a controller grip for dual-grip move/rotate/scale);
+#     a side press while navigating toggles yaw lock (upright). Hovering: front =
+#     width/weight adjust, back = delete. Menu: both click. During a point-grab
+#     drag, a back press toggles orientation lock (freeze the points' rotation).
 # Stylus feel constants (gates, hold delay, adjust spans) live in SettingsData.
 
 # Pressure group (tip/side share one gesture per hand)
@@ -1513,6 +1515,13 @@ func _stylus_press_end(hand: int) -> void:
 # --- Button group (front / back): quick still tap vs. deferred hold ---
 
 func _stylus_button_press(hand: int, is_front: bool) -> void:
+	# Back button during a stylus point-grab drag (tip or side pressure) toggles
+	# orientation lock — the stylus counterpart to the controller trigger. Handled
+	# before the exclusion below, since the active grab owns the hand as "press".
+	if not is_front and is_grip_translating(hand):
+		_toggle_grip_orientation_lock(hand)
+		return
+
 	# First-come exclusion: a pressure gesture in progress blocks the buttons.
 	if _stylus_owner[hand] == "press":
 		return
