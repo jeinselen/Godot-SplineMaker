@@ -5,6 +5,24 @@ extends RefCounted
 
 const SETTINGS_PATH := "user://settings.json"
 
+# --- Element placement (metres) --------------------------------------------
+# Single source of truth for where in-world content lands when placed in front
+# of the user. Each offset is a Vector3 in a camera-relative, gravity-aligned
+# frame: X = the user's right, Y = up (true vertical), Z = forward (the direction
+# the user faces, projected onto the horizontal plane — head pitch/roll ignored).
+# So (0, -0.05, 0.8) reads as "0.8 m ahead, 5 cm below eye level, dead centre";
+# give X a non-zero value to nudge an element to one side.
+# Kept as constants, not saved settings, so tuning these here always takes effect
+# (a value persisted to settings.json would otherwise shadow it).
+
+## Menu / project panels (whichever panel is active).
+const PANEL_OFFSET := Vector3(0.0, -0.25, 2.0)
+## Project space — the drawing itself.
+const PROJECT_OFFSET := Vector3(0.0, -0.5, 1.0)
+## Gap between a panel and the virtual keyboard spawned beneath it. A genuine 1-D
+## gap along the panel's down-axis, so it stays a scalar.
+const KEYBOARD_GAP := 0.025
+
 var export_directory: String = ""
 var max_undo_steps: int = 32
 var autosave_delay: float = 2.0   # seconds to wait before committing an autosave
@@ -13,11 +31,11 @@ var preview_spline_resolution: int = 8
 # Hand speed (m/s, real-world) that maps to the thinnest stroke in Speed draw
 # mode. Slow movement draws thick (full action-area radius); movement at or
 # above this speed draws thin. Tuned so a comfortable arm stroke reaches max.
-var max_draw_speed: float = 1.2
+var max_draw_speed: float = 1.5
 # Left/right stylus travel (metres) that maps to full deflection of the front-hold
 # virtual joystick. Smaller = more sensitive. Used for active-area size and point
 # width/weight adjustment when driving those with the MX Ink stylus.
-var stylus_joystick_range: float = 0.15
+var stylus_joystick_range: float = 0.25
 
 
 func load_from_file() -> void:

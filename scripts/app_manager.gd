@@ -18,19 +18,15 @@ var active_panel: XRPanel = null
 var _active_keyboard: XRKeyboard = null
 
 # --- Content placement ---
-
-## Where the project space lands, relative to the camera, when (re)placed:
-## a fixed distance ahead and slightly below eye level.
-const PROJECT_DISTANCE := 0.75
-const PROJECT_HEIGHT_OFFSET := -0.1
+# All placement distances/offsets live in SettingsData (single source of truth).
 
 ## True once content has been placed against a live (tracked) camera pose. The
 ## first placement is deferred out of _ready(): at that point the headset pose
 ## is not yet valid, which is what made content spawn meters from the user.
 var _experience_placed := false
-## Set by request_recenter(); consumed on the next _process frame so the camera
-## pose is guaranteed applied before we place content against it.
-var _recenter_pending := false
+## Set by request_initial_placement(); consumed on the next _process frame so
+## the camera pose is guaranteed applied before we place content against it.
+var _place_pending := false
 
 
 func _ready() -> void:
@@ -51,29 +47,29 @@ func _ready() -> void:
 	interaction.set_action_areas_visible(false)
 
 	# Start at main menu. The panel is created now but its final placement waits
-	# for a live camera pose (see _process / request_recenter).
+	# for a live camera pose (see _process / request_initial_placement).
 	_enter_main_menu()
 
 
 func _process(_delta: float) -> void:
-	# Perform a requested recenter here rather than inline, so the XR camera pose
-	# has been applied for this frame before we read it. This is what ties the
-	# app to the user's actual location instead of the scene origin.
-	if _recenter_pending:
-		_recenter_pending = false
+	# Do the initial placement here rather than inline, so the XR camera pose has
+	# been applied for this frame before we read it. This is what ties the app to
+	# the user's actual location instead of the scene origin.
+	if _place_pending:
+		_place_pending = false
 		_experience_placed = true
 		recenter_experience()
 
 
-## Called by xr_start when tracking first becomes live (initial open) and again
-## whenever the OS recenters the pose — the base location set by press-and-hold
-## on the Meta button, which the Meta OS also uses to place windowed apps.
-## `force` recenters even if content was already placed; without it, only the
-## first (initial-open) call takes effect, so re-donning the headset does not
-## teleport everything.
-func request_recenter(force: bool) -> void:
-	if force or not _experience_placed:
-		_recenter_pending = true
+## Called by xr_start once tracking first becomes live, to place the opening
+## layout against a valid camera pose. No-op after that first placement: later OS
+## recenters (press-and-hold Meta) are handled by the Local Floor reference space
+## itself — the runtime moves the view back to the origin while content stays in
+## world space, so the layout follows the user without being reset. Re-donning
+## the headset therefore never teleports anything either.
+func request_initial_placement() -> void:
+	if not _experience_placed:
+		_place_pending = true
 
 
 ## Re-present all active content directly in front of the user, using the live
@@ -81,21 +77,23 @@ func request_recenter(force: bool) -> void:
 ## OS pose-recenter, and the manual view reset all funnel here.
 func recenter_experience() -> void:
 	if state == AppState.IN_PROJECT:
-		project_space.global_transform = _front_of_camera(PROJECT_DISTANCE, PROJECT_HEIGHT_OFFSET)
+		project_space.global_transform = _front_of_camera(SettingsData.PROJECT_OFFSET)
 	reset_panel_position()
 
 
 ## A yaw-aligned transform placed in front of the camera on the horizontal plane
 ## (upright, facing the user). Used to drop the project space ahead of the user.
-func _front_of_camera(distance: float, height: float) -> Transform3D:
+## `offset` is camera-relative: X = right, Y = up, Z = forward (see SettingsData).
+func _front_of_camera(offset: Vector3) -> Transform3D:
 	var cam_t := xr_camera.global_transform
 	var cam_forward := -cam_t.basis.z
-	var horizontal_forward := Vector3(cam_forward.x, 0.0, cam_forward.z)
-	if horizontal_forward.length() < 0.0001:
-		horizontal_forward = Vector3(0.0, 0.0, -1.0)
-	horizontal_forward = horizontal_forward.normalized()
-	var origin := cam_t.origin + horizontal_forward * distance + Vector3.UP * height
-	var basis := Basis.looking_at(horizontal_forward, Vector3.UP)
+	var forward := Vector3(cam_forward.x, 0.0, cam_forward.z)
+	if forward.length() < 0.0001:
+		forward = Vector3(0.0, 0.0, -1.0)
+	forward = forward.normalized()
+	var right := forward.cross(Vector3.UP)  # +X = the user's right
+	var origin := cam_t.origin + right * offset.x + Vector3.UP * offset.y + forward * offset.z
+	var basis := Basis.looking_at(forward, Vector3.UP)
 	return Transform3D(basis, origin)
 
 
@@ -107,7 +105,7 @@ func open_project(dir_name: String) -> void:
 	_apply_preview_settings()
 	interaction.warm_up_drawing_pipeline(settings.preview_mesh_resolution, settings.preview_spline_resolution)
 	project_space.visible = true
-	project_space.global_transform = _front_of_camera(PROJECT_DISTANCE, PROJECT_HEIGHT_OFFSET)
+	project_space.global_transform = _front_of_camera(SettingsData.PROJECT_OFFSET)
 	state = AppState.IN_PROJECT
 
 	interaction.set_action_areas_visible(true)
@@ -121,7 +119,7 @@ func create_and_open_project() -> void:
 	project_manager.create_new_project()
 	interaction.warm_up_drawing_pipeline(settings.preview_mesh_resolution, settings.preview_spline_resolution)
 	project_space.visible = true
-	project_space.global_transform = _front_of_camera(PROJECT_DISTANCE, PROJECT_HEIGHT_OFFSET)
+	project_space.global_transform = _front_of_camera(SettingsData.PROJECT_OFFSET)
 	state = AppState.IN_PROJECT
 	interaction.set_action_areas_visible(true)
 	interaction.set_mode(interaction.Mode.SIZE)
@@ -202,7 +200,7 @@ func request_keyboard(target: Control, kind: String, anchor_panel: XRPanel) -> X
 	var anchor_t := anchor_panel.global_transform
 	var anchor_h := anchor_panel.panel_size.y * anchor_panel.pixel_size
 	var kb_h := kb.panel_size.y * kb.pixel_size
-	var down_offset := -(anchor_h * 0.5 + kb_h * 0.5 + 0.02)
+	var down_offset := -(anchor_h * 0.5 + kb_h * 0.5 + SettingsData.KEYBOARD_GAP)
 	var local_offset := Vector3(0.0, down_offset, 0.0)
 	kb.global_transform = Transform3D(anchor_t.basis, anchor_t.origin + anchor_t.basis * local_offset)
 

@@ -40,6 +40,7 @@ vrs/mode=2
 [xr]
 
 openxr/enabled=true
+openxr/reference_space=2
 openxr/environment_blend_mode=2
 openxr/foveation_level=3
 openxr/foveation_dynamic=true

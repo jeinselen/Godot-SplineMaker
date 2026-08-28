@@ -124,11 +124,11 @@ func _on_openxr_focused_state() -> void:
 	get_tree().paused = false
 
 	# On the first focus the headset pose is finally live, so place the app's
-	# content in front of the user. Guarded inside request_recenter() so simply
-	# re-donning the headset later does not teleport everything.
+	# opening layout in front of the user. Guarded inside request_initial_placement()
+	# so simply re-donning the headset later does not teleport everything.
 	var am: Node = get_node_or_null("%AppManager")
 	if am:
-		am.request_recenter(false)
+		am.request_initial_placement()
 
 
 func _on_openxr_stopping() -> void:
@@ -144,12 +144,12 @@ func _on_openxr_stopping() -> void:
 
 
 func _on_openxr_pose_recentered() -> void:
+	# The user set a new base location (press-and-hold the Meta button). With the
+	# Local Floor reference space the runtime handles this for us: it moves the
+	# view back to the origin while all content stays fixed in world space, so the
+	# whole layout (project view plus the custom panel positions around it) rigidly
+	# follows the user without being reset. Nothing for us to do but note it.
 	print("OpenXR: Pose recentered.")
-	# The user set a new base location (press-and-hold the Meta button). Move all
-	# content to that location, matching how the Meta OS repositions its windows.
-	var am: Node = get_node_or_null("%AppManager")
-	if am:
-		am.request_recenter(true)
 
 
 func _notification(what: int) -> void:
