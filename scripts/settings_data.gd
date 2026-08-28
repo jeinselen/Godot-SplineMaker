@@ -16,9 +16,9 @@ const SETTINGS_PATH := "user://settings.json"
 # (a value persisted to settings.json would otherwise shadow it).
 
 ## Menu / project panels (whichever panel is active).
-const PANEL_OFFSET := Vector3(0.0, -0.25, 2.0)
+const PANEL_OFFSET := Vector3(0.0, -0.25, 1.25)
 ## Project space — the drawing itself.
-const PROJECT_OFFSET := Vector3(0.0, -0.5, 1.0)
+const PROJECT_OFFSET := Vector3(0.0, -0.5, 0.75)
 ## Gap between a panel and the virtual keyboard spawned beneath it. A genuine 1-D
 ## gap along the panel's down-axis, so it stays a scalar.
 const KEYBOARD_GAP := 0.025

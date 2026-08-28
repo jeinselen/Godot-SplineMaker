@@ -15,6 +15,8 @@ general/updates_per_second=90
 [application]
 
 config/name="SplineMaker"
+config/description="Draw and edit NURBS splines in XR, with bi-directional data I/O with Blender via Delivery Kit."
+config/version="1.2.0"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
 config/icon="uid://cbpwm1bo078p3"
