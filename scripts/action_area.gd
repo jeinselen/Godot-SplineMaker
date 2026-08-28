@@ -6,10 +6,9 @@ extends Node3D
 
 const SIZE_MIN := 0.01
 const SIZE_MAX := 1.0
-const SIZE_DEFAULT := 0.1
 const RESIZE_SPEED := 0.1
 
-var radius: float = SIZE_DEFAULT
+var radius: float = SettingsData.ACTION_AREA_DEFAULT_SIZE
 var resize_locked: bool = false
 
 ## Snap step applied to the radius (0 = no snap). Set by interaction.gd from
@@ -22,7 +21,7 @@ var _material: StandardMaterial3D
 
 # Unsnapped running radius; tracks continuous joystick input so snapping
 # doesn't lock the value at one increment.
-var _raw_radius: float = SIZE_DEFAULT
+var _raw_radius: float = SettingsData.ACTION_AREA_DEFAULT_SIZE
 var _resizing: bool = false
 
 

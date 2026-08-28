@@ -42,6 +42,7 @@ Both controllers behave the same — usage is ambidextrous and independent. The 
   - `Trigger` = draw a new spline (pressure/speed sets stroke width; the `Smoothing` slider controls point density)
   - `Joystick` = adjust size of the action area
   - `Grip` = move and rotate the project space (both grips together = move, rotate, and scale)
+  - `Grip` + `Trigger` (same controller) = snap the view upright and rotate around the vertical axis only, for straightening on demand
   - `A`/`X` = undo, `B`/`Y` = redo
 - **Points** (when one or more are within the controller's active area)
   - `Trigger` = extrude endpoints or insert a midpoint (endpoints take priority; if only midpoints are in range, the lowest-index one is used)
@@ -63,6 +64,7 @@ The Logitech MX Ink stylus is supported natively on **Quest 3 / 3S (Meta OS v68+
 - **Back button**
   - Quick tap = undo
   - Hold = navigate the view (combine with a controller grip for move/rotate/scale); while hovering = delete points
+  - Hold to navigate + press the side pad = snap the view upright and rotate around the vertical axis only
 
 ## Settings
 

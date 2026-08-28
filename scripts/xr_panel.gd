@@ -17,8 +17,6 @@ extends Node3D
 # --- Constants ---
 
 const EDGE_MARGIN := 0.02  # meters — how far from the quad edge the grab zone extends
-const HAPTIC_TAP_AMPLITUDE := 0.3
-const HAPTIC_TAP_DURATION := 0.05
 
 # --- Internal state ---
 
@@ -196,25 +194,9 @@ func is_grabbed_by(controller_id: int) -> bool:
 ## (X = right, Y = up, Z = forward — see SettingsData) and comes from SettingsData
 ## so all in-world placement is tuned in one place; callers may override.
 func reset_position(camera: XRCamera3D, offset: Vector3 = SettingsData.PANEL_OFFSET) -> void:
-	var cam_t := camera.global_transform
-
-	# World-aligned horizontal forward (ignore head pitch/roll). Guard against a
-	# straight-up/down gaze collapsing the horizontal vector to zero.
-	var cam_forward := -cam_t.basis.z
-	var forward := Vector3(cam_forward.x, 0.0, cam_forward.z)
-	if forward.length() < 0.0001:
-		forward = Vector3(0.0, 0.0, -1.0)
-	forward = forward.normalized()
-	var right := forward.cross(Vector3.UP)  # +X = the user's right
-
-	var target_pos := cam_t.origin + right * offset.x + Vector3.UP * offset.y + forward * offset.z
-
-	# Face the camera: look_at points -Z at target, but QuadMesh faces +Z,
-	# so we look away from the camera to make the front face visible.
-	var away_target := target_pos + forward
-	global_transform = Transform3D.IDENTITY
-	global_position = target_pos
-	look_at(away_target, Vector3.UP)
+	# frame_in_front points -Z forward (away from the user); the QuadMesh faces +Z,
+	# so the panel's front face ends up toward the user.
+	global_transform = XRMath.frame_in_front(camera, offset)
 
 
 # --- Viewport & Quad creation ---
@@ -366,7 +348,7 @@ func _set_pointing(controller_id: int, pointing: bool) -> void:
 	# Haptic tap on first intersection
 	if pointing and not _was_pointing[controller_id]:
 		var ctrl := _left_controller if controller_id == 0 else _right_controller
-		ctrl.trigger_haptic_pulse("haptic", 0.0, HAPTIC_TAP_AMPLITUDE, HAPTIC_TAP_DURATION, 0.0)
+		Haptics.tap(ctrl)
 
 	# If no longer pointing, release any held mouse button and clear hover.
 	if not pointing:
@@ -535,7 +517,7 @@ func _update_edge_overlap(controller_id: int, controller: XRController3D) -> voi
 
 	# Haptic tap on first edge overlap
 	if in_edge and not _was_edge_overlap[controller_id]:
-		controller.trigger_haptic_pulse("haptic", 0.0, HAPTIC_TAP_AMPLITUDE, HAPTIC_TAP_DURATION, 0.0)
+		Haptics.tap(controller)
 
 
 func _on_controller_button_pressed(button_name: String, controller_id: int) -> void:

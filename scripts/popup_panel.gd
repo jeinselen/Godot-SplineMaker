@@ -4,10 +4,8 @@ extends XRPanel
 ## A small auto-dismissing popup panel for warnings, errors, and status messages.
 ## Extends XRPanel with a close button and optional auto-dismiss timer.
 
-const DEFAULT_DISMISS_TIME := 30.0
-
 var _dismiss_timer: float = 0.0
-var _dismiss_duration: float = DEFAULT_DISMISS_TIME
+var _dismiss_duration: float = SettingsData.POPUP_DISMISS_TIME
 var _label: Label
 var _close_button: Button
 
@@ -16,7 +14,7 @@ const PANEL_UI_SCENE := preload("res://scenes/ui/popup_panel_ui.tscn")
 
 ## Create a popup with the given message, color, and optional auto-dismiss time.
 ## Call setup() after adding to the scene tree.
-static func create(text: String, color: Color = Color.WHITE, dismiss_time: float = DEFAULT_DISMISS_TIME) -> XRPopup:
+static func create(text: String, color: Color = Color.WHITE, dismiss_time: float = SettingsData.POPUP_DISMISS_TIME) -> XRPopup:
 	var popup := XRPopup.new()
 	popup.panel_size = Vector2(400, 200)
 	popup._dismiss_duration = dismiss_time

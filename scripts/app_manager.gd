@@ -77,24 +77,8 @@ func request_initial_placement() -> void:
 ## OS pose-recenter, and the manual view reset all funnel here.
 func recenter_experience() -> void:
 	if state == AppState.IN_PROJECT:
-		project_space.global_transform = _front_of_camera(SettingsData.PROJECT_OFFSET)
+		project_space.global_transform = XRMath.frame_in_front(xr_camera, SettingsData.PROJECT_OFFSET)
 	reset_panel_position()
-
-
-## A yaw-aligned transform placed in front of the camera on the horizontal plane
-## (upright, facing the user). Used to drop the project space ahead of the user.
-## `offset` is camera-relative: X = right, Y = up, Z = forward (see SettingsData).
-func _front_of_camera(offset: Vector3) -> Transform3D:
-	var cam_t := xr_camera.global_transform
-	var cam_forward := -cam_t.basis.z
-	var forward := Vector3(cam_forward.x, 0.0, cam_forward.z)
-	if forward.length() < 0.0001:
-		forward = Vector3(0.0, 0.0, -1.0)
-	forward = forward.normalized()
-	var right := forward.cross(Vector3.UP)  # +X = the user's right
-	var origin := cam_t.origin + right * offset.x + Vector3.UP * offset.y + forward * offset.z
-	var basis := Basis.looking_at(forward, Vector3.UP)
-	return Transform3D(basis, origin)
 
 
 # --- State transitions ---
@@ -105,7 +89,7 @@ func open_project(dir_name: String) -> void:
 	_apply_preview_settings()
 	interaction.warm_up_drawing_pipeline(settings.preview_mesh_resolution, settings.preview_spline_resolution)
 	project_space.visible = true
-	project_space.global_transform = _front_of_camera(SettingsData.PROJECT_OFFSET)
+	project_space.global_transform = XRMath.frame_in_front(xr_camera, SettingsData.PROJECT_OFFSET)
 	state = AppState.IN_PROJECT
 
 	interaction.set_action_areas_visible(true)
@@ -119,7 +103,7 @@ func create_and_open_project() -> void:
 	project_manager.create_new_project()
 	interaction.warm_up_drawing_pipeline(settings.preview_mesh_resolution, settings.preview_spline_resolution)
 	project_space.visible = true
-	project_space.global_transform = _front_of_camera(SettingsData.PROJECT_OFFSET)
+	project_space.global_transform = XRMath.frame_in_front(xr_camera, SettingsData.PROJECT_OFFSET)
 	state = AppState.IN_PROJECT
 	interaction.set_action_areas_visible(true)
 	interaction.set_mode(interaction.Mode.SIZE)
@@ -228,7 +212,7 @@ func reset_panel_position() -> void:
 
 
 ## Show a popup in front of the camera.
-func show_popup(text: String, color: Color = Color.WHITE, dismiss_time: float = 30.0) -> XRPopup:
+func show_popup(text: String, color: Color = Color.WHITE, dismiss_time: float = SettingsData.POPUP_DISMISS_TIME) -> XRPopup:
 	var popup := XRPopup.create(text, color, dismiss_time)
 	get_tree().root.add_child(popup)
 	popup.setup(left_controller, right_controller)

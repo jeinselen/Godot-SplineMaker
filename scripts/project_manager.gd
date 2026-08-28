@@ -457,8 +457,8 @@ func _restore_state(state: Dictionary) -> void:
 	# Restore action area sizes
 	var aa: Dictionary = state.get("action_area_sizes", {})
 	interaction.restore_action_area_sizes(
-		float(aa.get("left", ActionArea.SIZE_DEFAULT)),
-		float(aa.get("right", ActionArea.SIZE_DEFAULT))
+		float(aa.get("left", SettingsData.ACTION_AREA_DEFAULT_SIZE)),
+		float(aa.get("right", SettingsData.ACTION_AREA_DEFAULT_SIZE))
 	)
 
 	# Restore snap state (v1 files have no "snapping" key — defaults to all off)

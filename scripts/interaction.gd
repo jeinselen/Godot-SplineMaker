@@ -156,10 +156,6 @@ const GRIP_SCALE_SPEED := 1.5
 const GRIP_SCALE_MIN := 0.05
 const GRIP_SCALE_MAX := 20.0
 
-const HAPTIC_TAP_AMPLITUDE := 0.3
-const HAPTIC_TAP_DURATION := 0.05
-const HAPTIC_BUZZ_AMPLITUDE := 0.1
-const HAPTIC_BUZZ_DURATION := 0.02
 const CONTROLLER_ID_LEFT := 0
 const CONTROLLER_ID_RIGHT := 1
 
@@ -174,15 +170,7 @@ const CONTROLLER_ID_RIGHT := 1
 #     size when empty, point width/weight when hovering). Back-hold = navigate the
 #     view (grip; combine with a controller grip for dual-grip move/rotate/scale).
 #     Hovering: front = width/weight adjust, back = delete. Menu: both click.
-const STYLUS_GATE_ON := 0.05    # tip/side pressure to start a gesture
-const STYLUS_GATE_OFF := 0.025  # ...and the lower value to end it (hysteresis)
-const STYLUS_WIDTH_SMOOTH := 0.5  # EMA on pressure feeding stroke width
-const STYLUS_HOLD_DELAY := 0.25   # s a crisp button is held before its hold action starts
-const STYLUS_TAP_MAX_MOVE := 0.02 # m — released still (under this) before the delay = a tap
-# Value change produced by one full stylus_joystick_range of left/right travel.
-const STYLUS_ADJ_AREA_SPAN := 0.15    # active-area radius (m)
-const STYLUS_ADJ_SIZE_SPAN := 0.1     # point size (m)
-const STYLUS_ADJ_WEIGHT_SPAN := 5.0   # point weight
+# Stylus feel constants (gates, hold delay, adjust spans) live in SettingsData.
 
 # Pressure group (tip/side share one gesture per hand)
 var _stylus_tip_raw: Array[float] = [0.0, 0.0]
@@ -204,6 +192,10 @@ var _stylus_front_pos: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
 var _stylus_back_pos: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
 var _stylus_front_started: Array[bool] = [false, false]  # front-hold adjust began
 var _stylus_back_started: Array[bool] = [false, false]   # back-hold navigate began
+# During back-hold navigation, a side press engages navigation's yaw lock. The
+# side gate is read directly (the press group is owner-blocked by the back
+# button), so this just mirrors its rising/falling edge to begin/end_yaw_lock.
+var _stylus_yaw_side: Array[bool] = [false, false]
 
 # Front-hold drag-adjust: direct displacement → value, with the selection locked.
 var _stylus_adjust_mode: Array[String] = ["", ""]  # "size" | "points"
@@ -354,13 +346,13 @@ func _process(delta: float) -> void:
 
 	# Haptic buzz while actively editing
 	if _left_trigger_active and (not _left_extruding.is_empty() or _left_drawing):
-		left_controller.trigger_haptic_pulse("haptic", 0.0, HAPTIC_BUZZ_AMPLITUDE, HAPTIC_BUZZ_DURATION, 0.0)
+		Haptics.buzz(left_controller)
 	if _right_trigger_active and (not _right_extruding.is_empty() or _right_drawing):
-		right_controller.trigger_haptic_pulse("haptic", 0.0, HAPTIC_BUZZ_AMPLITUDE, HAPTIC_BUZZ_DURATION, 0.0)
+		Haptics.buzz(right_controller)
 	if _left_grip_translating:
-		left_controller.trigger_haptic_pulse("haptic", 0.0, HAPTIC_BUZZ_AMPLITUDE, HAPTIC_BUZZ_DURATION, 0.0)
+		Haptics.buzz(left_controller)
 	if _right_grip_translating:
-		right_controller.trigger_haptic_pulse("haptic", 0.0, HAPTIC_BUZZ_AMPLITUDE, HAPTIC_BUZZ_DURATION, 0.0)
+		Haptics.buzz(right_controller)
 
 
 ## Build and briefly attach the same resources used by the first live stroke.
@@ -488,7 +480,7 @@ func _update_hover(controller_id: int, controller: XRController3D, action_area: 
 	var is_hovering := not new_hover_set.is_empty()
 	if is_hovering and not was_hovering:
 		var ctrl := left_controller if controller_id == CONTROLLER_ID_LEFT else right_controller
-		ctrl.trigger_haptic_pulse("haptic", 0.0, HAPTIC_TAP_AMPLITUDE, HAPTIC_TAP_DURATION, 0.0)
+		Haptics.tap(ctrl)
 	if controller_id == CONTROLLER_ID_LEFT:
 		_left_was_hovering = is_hovering
 	else:
@@ -1386,6 +1378,11 @@ func _on_trigger_pressed(controller_id: int) -> void:
 	if app_manager.is_pointing_at_panel(controller_id):
 		return
 
+	# Priority 2.5: a navigation grip is already active on this controller — the
+	# trigger is the yaw-lock modifier (navigation.gd handles it), not a draw.
+	if navigation and navigation.is_navigating(controller_id):
+		return
+
 	# Priority 3: empty space — begin drawing
 	_begin_drawing(controller_id)
 
@@ -1434,7 +1431,7 @@ func _stylus_pressure_changed(hand: int, is_tip: bool, value: float) -> void:
 		_stylus_side_raw[hand] = value
 
 	var raw := maxf(_stylus_tip_raw[hand], _stylus_side_raw[hand])
-	_stylus_pressure_sm[hand] = lerpf(_stylus_pressure_sm[hand], raw, STYLUS_WIDTH_SMOOTH)
+	_stylus_pressure_sm[hand] = lerpf(_stylus_pressure_sm[hand], raw, SettingsData.STYLUS_WIDTH_SMOOTH)
 	if hand == CONTROLLER_ID_LEFT:
 		_left_trigger_value = _stylus_pressure_sm[hand]
 	else:
@@ -1452,9 +1449,9 @@ func _stylus_pressure_changed(hand: int, is_tip: bool, value: float) -> void:
 func _stylus_update_gate(hand: int, is_tip: bool) -> void:
 	var raw: float = _stylus_tip_raw[hand] if is_tip else _stylus_side_raw[hand]
 	var gated: Array[bool] = _stylus_tip_gated if is_tip else _stylus_side_gated
-	if not gated[hand] and raw >= STYLUS_GATE_ON:
+	if not gated[hand] and raw >= SettingsData.STYLUS_GATE_ON:
 		gated[hand] = true
-	elif gated[hand] and raw < STYLUS_GATE_OFF:
+	elif gated[hand] and raw < SettingsData.STYLUS_GATE_OFF:
 		gated[hand] = false
 
 
@@ -1518,7 +1515,7 @@ func _stylus_button_press(hand: int, is_front: bool) -> void:
 		_stylus_front_started[hand] = false
 		if ctx == "menu":
 			_stylus_ui_click(hand, true)  # front on a menu = click buttons
-		# empty / hover: the hold (drag-adjust) starts later, after STYLUS_HOLD_DELAY
+		# empty / hover: the hold (drag-adjust) starts later, after SettingsData.STYLUS_HOLD_DELAY
 	else:
 		_stylus_back_time[hand] = now
 		_stylus_back_pos[hand] = pos
@@ -1529,7 +1526,7 @@ func _stylus_button_press(hand: int, is_front: bool) -> void:
 				_stylus_ui_grab(hand, true)  # back on a menu (or any UI) = move the panel
 			"hover":
 				_on_delete_pressed(hand)     # immediate delete
-			# empty: navigate starts later, after STYLUS_HOLD_DELAY
+			# empty: navigate starts later, after SettingsData.STYLUS_HOLD_DELAY
 
 
 ## Every frame: promote a held crisp button to its hold action once the delay
@@ -1539,16 +1536,36 @@ func _update_stylus_hold(hand: int) -> void:
 	var fm := _stylus_front_mode[hand]
 	if fm == "empty" or fm == "hover":
 		if not _stylus_front_started[hand]:
-			if now - _stylus_front_time[hand] >= STYLUS_HOLD_DELAY:
+			if now - _stylus_front_time[hand] >= SettingsData.STYLUS_HOLD_DELAY:
 				_stylus_front_started[hand] = true
 				_stylus_adjust_begin(hand, fm)
 		else:
 			_stylus_adjust_apply(hand)
 	if _stylus_back_mode[hand] == "empty" and not _stylus_back_started[hand]:
-		if now - _stylus_back_time[hand] >= STYLUS_HOLD_DELAY:
+		if now - _stylus_back_time[hand] >= SettingsData.STYLUS_HOLD_DELAY:
 			_stylus_back_started[hand] = true
 			if navigation:
 				navigation._on_grip_pressed(_controller_node(hand))
+
+	# While back-hold navigation runs, mirror the side gate to navigation's yaw
+	# lock (side down = snap upright + rotate about vertical only).
+	_update_stylus_yaw_lock(hand)
+
+
+## Engage/release navigation yaw lock from the stylus side gate, but only while
+## this hand is actively back-hold navigating.
+func _update_stylus_yaw_lock(hand: int) -> void:
+	if not navigation:
+		return
+	var navigating := _stylus_back_started[hand] and _stylus_back_mode[hand] == "empty"
+	var want := navigating and _stylus_side_gated[hand]
+	if want == _stylus_yaw_side[hand]:
+		return
+	_stylus_yaw_side[hand] = want
+	if want:
+		navigation.begin_yaw_lock(_controller_node(hand))
+	else:
+		navigation.end_yaw_lock(_controller_node(hand))
 
 
 func _stylus_button_release(hand: int, is_front: bool) -> void:
@@ -1585,7 +1602,7 @@ func _stylus_button_release(hand: int, is_front: bool) -> void:
 
 ## A tap = released before the hold delay AND without moving the stylus far.
 func _stylus_still_tap(hand: int, press_pos: Vector3) -> bool:
-	return _controller_node(hand).global_position.distance_to(press_pos) <= STYLUS_TAP_MAX_MOVE
+	return _controller_node(hand).global_position.distance_to(press_pos) <= SettingsData.STYLUS_TAP_MAX_MOVE
 
 
 # --- Front-hold drag-adjust (direct displacement -> value, selection locked) ---
@@ -1615,13 +1632,13 @@ func _stylus_adjust_apply(hand: int) -> void:
 	var travel: float = app_manager.settings.stylus_joystick_range
 	var norm := disp / travel if travel > 0.001 else 0.0
 	if _stylus_adjust_mode[hand] == "size":
-		var r := _stylus_adjust_start_radius[hand] + norm * STYLUS_ADJ_AREA_SPAN
+		var r := _stylus_adjust_start_radius[hand] + norm * SettingsData.STYLUS_ADJ_AREA_SPAN
 		if snap_size_enabled and snap_size_step > 0.0:
 			r = round(r / snap_size_step) * snap_size_step
 		_action_area(hand).set_radius(r)
 	elif _stylus_adjust_mode[hand] == "points":
 		var is_w := _stylus_adjust_is_weight[hand]
-		var span := STYLUS_ADJ_WEIGHT_SPAN if is_w else STYLUS_ADJ_SIZE_SPAN
+		var span := SettingsData.STYLUS_ADJ_WEIGHT_SPAN if is_w else SettingsData.STYLUS_ADJ_SIZE_SPAN
 		var pts := _get_adjust_points(hand)
 		var first := 0.0
 		for i in pts.size():
