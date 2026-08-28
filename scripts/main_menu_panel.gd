@@ -216,6 +216,8 @@ func _on_project_rename_pressed(dir_name: String, row: HBoxContainer) -> void:
 	_rename_edit.add_theme_font_size_override("font_size", 18)
 	_rename_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_rename_edit.text_submitted.connect(_on_rename_submitted.bind(dir_name))
+	# Created after _ready, so strip its native popups explicitly (see XRPanel).
+	disable_native_popups(_rename_edit)
 	row.add_child(_rename_edit)
 	_rename_edit.grab_focus()
 

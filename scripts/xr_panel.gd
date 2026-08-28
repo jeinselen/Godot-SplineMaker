@@ -82,6 +82,32 @@ func _ready() -> void:
 	_create_quad()
 	_create_edge_highlight()
 	_create_ray_mesh()
+	# Subclasses build their UI after this returns; strip native popups next idle.
+	call_deferred("_strip_native_popups")
+
+
+func _strip_native_popups() -> void:
+	if _content_root:
+		disable_native_popups(_content_root)
+
+
+## Recursively disable native popup Windows on a Control subtree: LineEdit /
+## SpinBox context menus (the "dialog") and the OS virtual keyboard. Neither can
+## render in an XR SubViewport — the app injects its own input and spawns its own
+## XR keyboard — and the runtime trying to show one logs "Attempting to parent and
+## popup a dialog that already has a parent." Also call this on any text field
+## created after _ready (e.g. an inline rename field).
+static func disable_native_popups(root: Node) -> void:
+	var line_edit: LineEdit = null
+	if root is LineEdit:
+		line_edit = root
+	elif root is SpinBox:
+		line_edit = (root as SpinBox).get_line_edit()
+	if line_edit:
+		line_edit.context_menu_enabled = false
+		line_edit.virtual_keyboard_enabled = false
+	for child in root.get_children():
+		disable_native_popups(child)
 
 
 ## Track bound callables for clean disconnection.
