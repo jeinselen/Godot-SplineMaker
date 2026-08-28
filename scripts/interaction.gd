@@ -867,8 +867,10 @@ func _on_delete_pressed(controller_id: int) -> void:
 				sn.data.remove_point(idx)
 			sn.mark_dirty()
 
-	# Clear hover sets before freeing nodes
-	_set_hover_set(controller_id, [])
+	# Deletion shifted point indices out from under the index-keyed hover state
+	# (on both controllers, and the nodes themselves), so fully reset hover and
+	# let next frame's _update_hover re-derive it from controller positions.
+	clear_hover_sets()
 
 	# Remove splines that are too short
 	for sn in splines_to_remove:
@@ -1019,13 +1021,20 @@ func restore_action_area_sizes(left_radius: float, right_radius: float) -> void:
 	right_action_area._apply_radius()
 
 
-## Clears hover state before project_manager frees SplineNodes during restore,
-## preventing dangling node references in the hover diff loop.
+## Full hover reset: clears both controllers' hover sets and the node-side
+## highlight on every spline, so the next _update_hover re-derives highlights
+## from actual controller positions. Call after any structural edit that shifts
+## point indices (delete, merge) — index-keyed hover state goes stale otherwise —
+## and before project_manager frees SplineNodes during restore, so the hover diff
+## loop can't touch dangling nodes.
 func clear_hover_sets() -> void:
 	_left_hover_set = []
 	_right_hover_set = []
 	_left_was_hovering = false
 	_right_was_hovering = false
+	for child in project_space.get_children():
+		if child is SplineNode:
+			(child as SplineNode).clear_hover_state()
 
 
 ## Show or hide the action area spheres on controllers.

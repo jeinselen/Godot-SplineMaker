@@ -134,6 +134,21 @@ func set_point_hovered(index: int, hovered: bool, controller_id: int, symmetry_i
 	_update_point_visual(index, symmetry_index)
 
 
+## Drops all hover highlighting on this node and repaints the affected cubes.
+## Hover state is keyed by point index, so any structural edit that shifts
+## indices (delete, merge) makes it stale; callers reset it here and let the
+## next position-based hover pass re-establish the correct highlights. Editing
+## state is left alone — it's driven by explicit begin/end edit calls, not by
+## position, so it never goes stale this way.
+func clear_hover_state() -> void:
+	if _hovered_points.is_empty():
+		return
+	_hovered_points.clear()
+	for symmetry_index in _cp_meshes.size():
+		for i in (_cp_meshes[symmetry_index] as Array).size():
+			_update_point_visual(i, symmetry_index)
+
+
 func set_point_editing(index: int, editing: bool, symmetry_index: int = 0) -> void:
 	var visual_key := _visual_key(index, symmetry_index)
 	if editing:
