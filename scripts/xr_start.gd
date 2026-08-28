@@ -123,6 +123,13 @@ func _on_openxr_focused_state() -> void:
 	xr_is_focused = true
 	get_tree().paused = false
 
+	# On the first focus the headset pose is finally live, so place the app's
+	# content in front of the user. Guarded inside request_recenter() so simply
+	# re-donning the headset later does not teleport everything.
+	var am: Node = get_node_or_null("%AppManager")
+	if am:
+		am.request_recenter(false)
+
 
 func _on_openxr_stopping() -> void:
 	print("OpenXR: Session stopping.")
@@ -138,6 +145,11 @@ func _on_openxr_stopping() -> void:
 
 func _on_openxr_pose_recentered() -> void:
 	print("OpenXR: Pose recentered.")
+	# The user set a new base location (press-and-hold the Meta button). Move all
+	# content to that location, matching how the Meta OS repositions its windows.
+	var am: Node = get_node_or_null("%AppManager")
+	if am:
+		am.request_recenter(true)
 
 
 func _notification(what: int) -> void:

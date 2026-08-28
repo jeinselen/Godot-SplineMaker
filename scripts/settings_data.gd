@@ -8,7 +8,6 @@ const SETTINGS_PATH := "user://settings.json"
 var export_directory: String = ""
 var max_undo_steps: int = 32
 var autosave_delay: float = 2.0   # seconds to wait before committing an autosave
-var panel_side: String = "left"   # "left" or "right"
 var preview_mesh_resolution: int = 8
 var preview_spline_resolution: int = 8
 # Hand speed (m/s, real-world) that maps to the thinnest stroke in Speed draw
@@ -33,8 +32,6 @@ func load_from_file() -> void:
 	export_directory = str(d.get("export_directory", ""))
 	max_undo_steps = clampi(int(d.get("max_undo_steps", 32)), 1, 100)
 	autosave_delay = clampf(float(d.get("autosave_delay", 2.0)), 0.0, 10.0)
-	var side: String = str(d.get("panel_side", "left"))
-	panel_side = side if side in ["left", "right"] else "left"
 	preview_mesh_resolution = clampi(int(d.get("preview_mesh_resolution", 8)), 3, 32)
 	preview_spline_resolution = clampi(int(d.get("preview_spline_resolution", 8)), 1, 32)
 	max_draw_speed = clampf(float(d.get("max_draw_speed", 1.2)), 0.1, 3.0)
@@ -46,7 +43,6 @@ func save_to_file() -> void:
 		"export_directory": export_directory,
 		"max_undo_steps": max_undo_steps,
 		"autosave_delay": autosave_delay,
-		"panel_side": panel_side,
 		"preview_mesh_resolution": preview_mesh_resolution,
 		"preview_spline_resolution": preview_spline_resolution,
 		"max_draw_speed": max_draw_speed,

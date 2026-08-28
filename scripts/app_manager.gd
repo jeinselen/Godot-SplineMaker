@@ -17,6 +17,21 @@ var settings := SettingsData.new()
 var active_panel: XRPanel = null
 var _active_keyboard: XRKeyboard = null
 
+# --- Content placement ---
+
+## Where the project space lands, relative to the camera, when (re)placed:
+## a fixed distance ahead and slightly below eye level.
+const PROJECT_DISTANCE := 0.75
+const PROJECT_HEIGHT_OFFSET := -0.1
+
+## True once content has been placed against a live (tracked) camera pose. The
+## first placement is deferred out of _ready(): at that point the headset pose
+## is not yet valid, which is what made content spawn meters from the user.
+var _experience_placed := false
+## Set by request_recenter(); consumed on the next _process frame so the camera
+## pose is guaranteed applied before we place content against it.
+var _recenter_pending := false
+
 
 func _ready() -> void:
 	settings.load_from_file()
@@ -35,13 +50,56 @@ func _ready() -> void:
 	project_space.visible = false
 	interaction.set_action_areas_visible(false)
 
-	# Start at main menu
+	# Start at main menu. The panel is created now but its final placement waits
+	# for a live camera pose (see _process / request_recenter).
 	_enter_main_menu()
 
 
-# --- State transitions ---
+func _process(_delta: float) -> void:
+	# Perform a requested recenter here rather than inline, so the XR camera pose
+	# has been applied for this frame before we read it. This is what ties the
+	# app to the user's actual location instead of the scene origin.
+	if _recenter_pending:
+		_recenter_pending = false
+		_experience_placed = true
+		recenter_experience()
 
-const DEFAULT_PROJECT_OFFSET := Vector3(0.0, 0.5, -0.75)
+
+## Called by xr_start when tracking first becomes live (initial open) and again
+## whenever the OS recenters the pose — the base location set by press-and-hold
+## on the Meta button, which the Meta OS also uses to place windowed apps.
+## `force` recenters even if content was already placed; without it, only the
+## first (initial-open) call takes effect, so re-donning the headset does not
+## teleport everything.
+func request_recenter(force: bool) -> void:
+	if force or not _experience_placed:
+		_recenter_pending = true
+
+
+## Re-present all active content directly in front of the user, using the live
+## camera pose. Single source of truth for "put things where I am": app open,
+## OS pose-recenter, and the manual view reset all funnel here.
+func recenter_experience() -> void:
+	if state == AppState.IN_PROJECT:
+		project_space.global_transform = _front_of_camera(PROJECT_DISTANCE, PROJECT_HEIGHT_OFFSET)
+	reset_panel_position()
+
+
+## A yaw-aligned transform placed in front of the camera on the horizontal plane
+## (upright, facing the user). Used to drop the project space ahead of the user.
+func _front_of_camera(distance: float, height: float) -> Transform3D:
+	var cam_t := xr_camera.global_transform
+	var cam_forward := -cam_t.basis.z
+	var horizontal_forward := Vector3(cam_forward.x, 0.0, cam_forward.z)
+	if horizontal_forward.length() < 0.0001:
+		horizontal_forward = Vector3(0.0, 0.0, -1.0)
+	horizontal_forward = horizontal_forward.normalized()
+	var origin := cam_t.origin + horizontal_forward * distance + Vector3.UP * height
+	var basis := Basis.looking_at(horizontal_forward, Vector3.UP)
+	return Transform3D(basis, origin)
+
+
+# --- State transitions ---
 
 func open_project(dir_name: String) -> void:
 	_destroy_active_panel()
@@ -49,7 +107,7 @@ func open_project(dir_name: String) -> void:
 	_apply_preview_settings()
 	interaction.warm_up_drawing_pipeline(settings.preview_mesh_resolution, settings.preview_spline_resolution)
 	project_space.visible = true
-	project_space.transform = Transform3D(Basis.IDENTITY, DEFAULT_PROJECT_OFFSET)
+	project_space.global_transform = _front_of_camera(PROJECT_DISTANCE, PROJECT_HEIGHT_OFFSET)
 	state = AppState.IN_PROJECT
 
 	interaction.set_action_areas_visible(true)
@@ -63,7 +121,7 @@ func create_and_open_project() -> void:
 	project_manager.create_new_project()
 	interaction.warm_up_drawing_pipeline(settings.preview_mesh_resolution, settings.preview_spline_resolution)
 	project_space.visible = true
-	project_space.transform = Transform3D(Basis.IDENTITY, DEFAULT_PROJECT_OFFSET)
+	project_space.global_transform = _front_of_camera(PROJECT_DISTANCE, PROJECT_HEIGHT_OFFSET)
 	state = AppState.IN_PROJECT
 	interaction.set_action_areas_visible(true)
 	interaction.set_mode(interaction.Mode.SIZE)
@@ -102,7 +160,7 @@ func _create_main_menu_panel() -> void:
 	var panel := MainMenuPanel.create_panel(self)
 	add_child(panel)
 	panel.setup(left_controller, right_controller)
-	panel.reset_position(xr_camera, "center")
+	panel.reset_position(xr_camera)
 	active_panel = panel
 
 
@@ -110,7 +168,7 @@ func _create_in_project_panel() -> void:
 	var panel := InProjectPanel.create_panel(self)
 	add_child(panel)
 	panel.setup(left_controller, right_controller)
-	panel.reset_position(xr_camera, settings.panel_side)
+	panel.reset_position(xr_camera)
 	active_panel = panel
 
 
@@ -165,11 +223,10 @@ func is_keyboard_active() -> bool:
 	return _active_keyboard != null and is_instance_valid(_active_keyboard)
 
 
-## Reposition the active panel in front of the camera.
+## Reposition the active panel directly in front of the camera.
 func reset_panel_position() -> void:
 	if active_panel and is_instance_valid(active_panel):
-		var side := settings.panel_side if state == AppState.IN_PROJECT else "center"
-		active_panel.reset_position(xr_camera, side)
+		active_panel.reset_position(xr_camera)
 
 
 ## Show a popup in front of the camera.
@@ -177,7 +234,7 @@ func show_popup(text: String, color: Color = Color.WHITE, dismiss_time: float = 
 	var popup := XRPopup.create(text, color, dismiss_time)
 	get_tree().root.add_child(popup)
 	popup.setup(left_controller, right_controller)
-	popup.reset_position(xr_camera, "center")
+	popup.reset_position(xr_camera)
 	return popup
 
 

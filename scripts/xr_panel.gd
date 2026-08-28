@@ -190,18 +190,27 @@ func is_grabbed_by(controller_id: int) -> bool:
 	return _grabbed and _grab_controller_id == controller_id
 
 
-## Position the panel relative to a camera, offset to the given side.
-func reset_position(camera: XRCamera3D, side: String = "left") -> void:
+## Meters in front of the camera the panel sits when reset.
+const RESET_DISTANCE := 0.8
+## Meters above eye level the panel sits when reset (negative = below).
+const RESET_HEIGHT_OFFSET := -0.05
+
+
+## Position the panel centered in front of the camera on the horizontal plane,
+## facing the user. Placement follows the camera's current position and yaw, so
+## the panel always lands directly ahead of wherever the user is looking.
+func reset_position(camera: XRCamera3D) -> void:
 	var cam_t := camera.global_transform
 
-	# Use world-aligned horizontal forward (ignore head pitch/roll)
+	# World-aligned horizontal forward (ignore head pitch/roll). Guard against a
+	# straight-up/down gaze collapsing the horizontal vector to zero.
 	var cam_forward := -cam_t.basis.z
-	var horizontal_forward := Vector3(cam_forward.x, 0.0, cam_forward.z).normalized()
-	var horizontal_right := Vector3.UP.cross(horizontal_forward).normalized()
+	var horizontal_forward := Vector3(cam_forward.x, 0.0, cam_forward.z)
+	if horizontal_forward.length() < 0.0001:
+		horizontal_forward = Vector3(0.0, 0.0, -1.0)
+	horizontal_forward = horizontal_forward.normalized()
 
-	# Place 0.8m in front, 0.35m to the side, 0.05m below eye level
-	var side_offset := -0.35 if side == "left" else 0.35
-	var target_pos := cam_t.origin + horizontal_forward * 0.8 + horizontal_right * side_offset + Vector3.UP * -0.05
+	var target_pos := cam_t.origin + horizontal_forward * RESET_DISTANCE + Vector3.UP * RESET_HEIGHT_OFFSET
 
 	# Face the camera: look_at points -Z at target, but QuadMesh faces +Z,
 	# so we look away from the camera to make the front face visible.

@@ -146,21 +146,6 @@ max_value = 10.0
 step = 0.5
 suffix = "s"
 
-[node name="PanelSideRow" type="HBoxContainer" parent="Margin/MainVBox/SettingsView" unique_id=76714965]
-layout_mode = 2
-theme_override_constants/separation = 6
-
-[node name="Label" type="Label" parent="Margin/MainVBox/SettingsView/PanelSideRow" unique_id=1013888657]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
-theme_override_font_sizes/font_size = 18
-text = "Panel Side"
-
-[node name="PanelSideButton" type="Button" parent="Margin/MainVBox/SettingsView/PanelSideRow" unique_id=1564663620]
-layout_mode = 2
-theme_override_font_sizes/font_size = 18
-
 [node name="MeshResolutionRow" type="HBoxContainer" parent="Margin/MainVBox/SettingsView" unique_id=1676773689]
 layout_mode = 2
 theme_override_constants/separation = 6

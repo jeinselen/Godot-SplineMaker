@@ -181,7 +181,8 @@ func _basis_from_two_points(left_pos: Vector3, right_pos: Vector3) -> Basis:
 # --- View reset ---
 
 func _reset_view() -> void:
-	project_space.transform = Transform3D(Basis.IDENTITY, app_manager.DEFAULT_PROJECT_OFFSET)
+	# Drop any in-progress grip, then re-present everything (project space and the
+	# active panel) directly in front of the user via the single placement path.
 	left_grip_active = false
 	right_grip_active = false
-	app_manager.reset_panel_position()
+	app_manager.recenter_experience()

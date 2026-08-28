@@ -19,7 +19,6 @@ var _import_path_label: Label
 var _export_path_edit: LineEdit
 var _undo_steps_spin: SpinBox
 var _autosave_delay_spin: SpinBox
-var _panel_side_btn: Button
 var _mesh_res_spin: SpinBox
 var _spline_res_spin: SpinBox
 var _max_speed_spin: SpinBox
@@ -48,22 +47,6 @@ func _ready() -> void:
 	_project_manager = _app_manager.project_manager
 	_build_ui()
 	_refresh_project_list()
-
-
-## Position centered in front of the camera (overrides side offset).
-func reset_position(camera: XRCamera3D, _side: String = "center") -> void:
-	var cam_t := camera.global_transform
-
-	# Use world-aligned horizontal forward (ignore head pitch/roll)
-	var cam_forward := -cam_t.basis.z
-	var horizontal_forward := Vector3(cam_forward.x, 0.0, cam_forward.z).normalized()
-
-	var target_pos := cam_t.origin + horizontal_forward * 0.9 + Vector3.UP * 0.1
-	var away_target := target_pos + horizontal_forward
-
-	global_transform = Transform3D.IDENTITY
-	global_position = target_pos
-	look_at(away_target, Vector3.UP)
 
 
 func _build_ui() -> void:
@@ -102,10 +85,6 @@ func _build_ui() -> void:
 	_autosave_delay_spin = ui.find_child("AutosaveDelaySpin", true, false) as SpinBox
 	_autosave_delay_spin.value = _app_manager.settings.autosave_delay
 	_wire_spinbox_keyboard(_autosave_delay_spin)
-
-	_panel_side_btn = ui.find_child("PanelSideButton", true, false) as Button
-	_panel_side_btn.text = _app_manager.settings.panel_side.capitalize()
-	_panel_side_btn.pressed.connect(_on_panel_side_toggled)
 
 	_mesh_res_spin = ui.find_child("MeshResolutionSpin", true, false) as SpinBox
 	_mesh_res_spin.value = _app_manager.settings.preview_mesh_resolution
@@ -295,19 +274,11 @@ func _on_settings_back_pressed() -> void:
 	_app_manager.settings.export_directory = _export_path_edit.text
 	_app_manager.settings.max_undo_steps = int(_undo_steps_spin.value)
 	_app_manager.settings.autosave_delay = _autosave_delay_spin.value
-	_app_manager.settings.panel_side = "left" if _panel_side_btn.text == "Left" else "right"
 	_app_manager.settings.preview_mesh_resolution = int(_mesh_res_spin.value)
 	_app_manager.settings.preview_spline_resolution = int(_spline_res_spin.value)
 	_app_manager.settings.max_draw_speed = _max_speed_spin.value
 	_app_manager.apply_settings()
 	_show_main_view()
-
-
-func _on_panel_side_toggled() -> void:
-	if _panel_side_btn.text == "Left":
-		_panel_side_btn.text = "Right"
-	else:
-		_panel_side_btn.text = "Left"
 
 
 func _on_import_pressed() -> void:

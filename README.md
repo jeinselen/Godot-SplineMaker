@@ -71,7 +71,6 @@ The main menu provides a Settings sub-panel:
 - **Export Path** — location of exported / importable JSON files (undo/redo history is internal; only the current state is exported)
 - **Undo Steps** — number of undo versions to autosave
 - **Autosave Delay** — seconds of inactivity before an undo step is saved (groups rapid edits together)
-- **Panel Side** — which side the project panel appears on
 - **Mesh Resolution** — sides used for the preview tube mesh (higher = smoother, lower = faster)
 - **Spline Resolution** — segmentation between control points (Blender defaults to 12; this app defaults to 8 for speed)
 - **Max Draw Speed** — hand velocity that maps to the thinnest stroke in Speed mode
@@ -87,7 +86,6 @@ Per-project drawing options live in the project panel:
 ## Known Issues
 
 - Project panel placement may not be ideal — just move it.
-- Resetting the view doesn't always use your current location; look around for the axis centre-point marker.
 
 ## Building In Godot
 
