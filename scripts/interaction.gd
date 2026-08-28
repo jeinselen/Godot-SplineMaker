@@ -131,6 +131,11 @@ var _left_grip_initial_basis: Basis = Basis.IDENTITY
 var _right_grip_initial_basis: Basis = Basis.IDENTITY
 var _left_grip_scale: float = 1.0
 var _right_grip_scale: float = 1.0
+# Orientation lock: a trigger press during a grip drag toggles this on, freezing
+# the grabbed points at their original orientation (translation + scale only, no
+# rotation). Reset each time a grip drag begins.
+var _left_grip_orient_locked: bool = false
+var _right_grip_orient_locked: bool = false
 
 # Warning popup state
 var _short_draw_warned: bool = false
@@ -192,9 +197,10 @@ var _stylus_front_pos: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
 var _stylus_back_pos: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
 var _stylus_front_started: Array[bool] = [false, false]  # front-hold adjust began
 var _stylus_back_started: Array[bool] = [false, false]   # back-hold navigate began
-# During back-hold navigation, a side press engages navigation's yaw lock. The
+# During back-hold navigation, a side press toggles navigation's yaw lock. The
 # side gate is read directly (the press group is owner-blocked by the back
-# button), so this just mirrors its rising/falling edge to begin/end_yaw_lock.
+# button); this tracks the previous gate reading so each press (rising edge) is
+# one toggle, matching the controller trigger.
 var _stylus_yaw_side: Array[bool] = [false, false]
 
 # Front-hold drag-adjust: direct displacement → value, with the selection locked.
@@ -1368,6 +1374,12 @@ func _on_trigger_pressed(controller_id: int) -> void:
 	if app_manager.is_keyboard_active():
 		return
 
+	# Priority 0: a point grip is dragging on this controller — the trigger toggles
+	# orientation lock (freeze the grabbed points' rotation), not an extrude/draw.
+	if is_grip_translating(controller_id):
+		_toggle_grip_orientation_lock(controller_id)
+		return
+
 	# Priority 1: hovered control points — extrude/insert
 	var hover_set := _get_hover_set(controller_id)
 	if not hover_set.is_empty():
@@ -1547,25 +1559,22 @@ func _update_stylus_hold(hand: int) -> void:
 			if navigation:
 				navigation._on_grip_pressed(_controller_node(hand))
 
-	# While back-hold navigation runs, mirror the side gate to navigation's yaw
-	# lock (side down = snap upright + rotate about vertical only).
+	# While back-hold navigation runs, a side press toggles navigation's yaw lock
+	# (snap upright + rotate about vertical only, until pressed again).
 	_update_stylus_yaw_lock(hand)
 
 
-## Engage/release navigation yaw lock from the stylus side gate, but only while
-## this hand is actively back-hold navigating.
+## Toggle navigation yaw lock from the stylus side gate on each press (rising
+## edge), but only while this hand is actively back-hold navigating. Navigation
+## clears the lock itself when the grip ends, so this needn't undo it on stop.
 func _update_stylus_yaw_lock(hand: int) -> void:
 	if not navigation:
 		return
 	var navigating := _stylus_back_started[hand] and _stylus_back_mode[hand] == "empty"
-	var want := navigating and _stylus_side_gated[hand]
-	if want == _stylus_yaw_side[hand]:
-		return
-	_stylus_yaw_side[hand] = want
-	if want:
-		navigation.begin_yaw_lock(_controller_node(hand))
-	else:
-		navigation.end_yaw_lock(_controller_node(hand))
+	var side_down := navigating and _stylus_side_gated[hand]
+	if side_down and not _stylus_yaw_side[hand]:
+		navigation.toggle_yaw_lock(_controller_node(hand))
+	_stylus_yaw_side[hand] = side_down
 
 
 func _stylus_button_release(hand: int, is_front: bool) -> void:
@@ -1758,6 +1767,18 @@ func is_grip_translating(controller_id: int) -> bool:
 		return _right_grip_translating
 
 
+## Flip orientation lock for an in-progress point grip: on holds the grabbed points
+## at their original orientation (no rotation), off resumes wrist-driven rotation.
+## The next _update_grip_transform reflects the change; a haptic tap confirms it.
+func _toggle_grip_orientation_lock(controller_id: int) -> void:
+	var controller := left_controller if controller_id == CONTROLLER_ID_LEFT else right_controller
+	if controller_id == CONTROLLER_ID_LEFT:
+		_left_grip_orient_locked = not _left_grip_orient_locked
+	else:
+		_right_grip_orient_locked = not _right_grip_orient_locked
+	Haptics.tap(controller)
+
+
 func _on_grip_pressed(controller_id: int) -> void:
 	# Suppress point-grip while a virtual keyboard is open.
 	if app_manager.is_keyboard_active():
@@ -1795,12 +1816,14 @@ func _on_grip_pressed(controller_id: int) -> void:
 		_left_grip_initial_basis = grip_local_basis
 		_left_grip_scale = 1.0
 		_left_grip_grabbed = grabbed
+		_left_grip_orient_locked = false
 	else:
 		_right_grip_translating = true
 		_right_grip_initial_pos = grip_local_pos
 		_right_grip_initial_basis = grip_local_basis
 		_right_grip_scale = 1.0
 		_right_grip_grabbed = grabbed
+		_right_grip_orient_locked = false
 
 
 func _on_grip_released(controller_id: int) -> void:
@@ -1823,11 +1846,13 @@ func _on_grip_released(controller_id: int) -> void:
 		_left_grip_initial_basis = Basis.IDENTITY
 		_left_grip_scale = 1.0
 		_left_grip_grabbed = []
+		_left_grip_orient_locked = false
 	else:
 		_right_grip_translating = false
 		_right_grip_initial_basis = Basis.IDENTITY
 		_right_grip_scale = 1.0
 		_right_grip_grabbed = []
+		_right_grip_orient_locked = false
 
 	project_manager.autosave()
 
@@ -1849,8 +1874,13 @@ func _update_grip_transform(controller_id: int) -> void:
 	var current_local_pos := first_sn.symmetry_to_base(current_visible_pos, first_symmetry_index)
 	var translate_delta := current_local_pos - initial_pos
 
-	var current_local_basis := _controller_basis_in_base(controller, first_basis)
-	var rotation_delta := current_local_basis * initial_basis.inverse()
+	# Orientation lock (trigger toggled during the drag): hold the points at their
+	# original orientation — translation + scale only, no rotation from the wrist.
+	var orient_locked := _left_grip_orient_locked if controller_id == CONTROLLER_ID_LEFT else _right_grip_orient_locked
+	var rotation_delta := Basis.IDENTITY
+	if not orient_locked:
+		var current_local_basis := _controller_basis_in_base(controller, first_basis)
+		rotation_delta = current_local_basis * initial_basis.inverse()
 
 	for entry in grabbed:
 		var spline_node := entry["spline"] as SplineNode

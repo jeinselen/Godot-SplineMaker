@@ -2,9 +2,11 @@ extends Node3D
 
 ## Grip-based navigation: translate, rotate, and scale the project space.
 ## Single grip = translate + rotate. Dual grip = translate + rotate + scale.
-## Single grip + trigger (same controller) = "yaw lock": snap the project upright
-## and constrain it to translation + rotation about the vertical axis only, so the
-## user can straighten the view on demand. Menu button resets the view.
+## Single grip + trigger (same controller) toggles "yaw lock": the first trigger
+## press snaps the project upright and constrains it to translation + rotation
+## about the vertical axis only; a second press releases back to free rotation.
+## The lock is a toggle (not held), so the grip can be released while upright
+## without fumbling the trigger first. Menu button resets the view.
 
 @onready var left_controller: XRController3D = %LeftController
 @onready var right_controller: XRController3D = %RightController
@@ -67,7 +69,7 @@ func _on_button_pressed(button_name: String, controller: XRController3D) -> void
 	if button_name == "grip_click":
 		_on_grip_pressed(controller)
 	elif button_name == "trigger_click":
-		begin_yaw_lock(controller)
+		toggle_yaw_lock(controller)
 	elif button_name == "menu_button":
 		_reset_view()
 
@@ -75,8 +77,7 @@ func _on_button_pressed(button_name: String, controller: XRController3D) -> void
 func _on_button_released(button_name: String, controller: XRController3D) -> void:
 	if button_name == "grip_click":
 		_on_grip_released(controller)
-	elif button_name == "trigger_click":
-		end_yaw_lock(controller)
+	# trigger_click is a toggle handled on press; releasing it does nothing.
 
 
 # --- Grip press/release ---
@@ -148,9 +149,19 @@ func _update_single_grip(controller: XRController3D) -> void:
 
 # --- Yaw-lock navigation (upright, translate + rotate about vertical only) ---
 
-## Engage yaw lock for `controller` if it is the sole gripping controller. Called
-## by the trigger button (Touch) and by the stylus side press during back-hold
-## navigation. A no-op otherwise, so callers needn't pre-check.
+## Toggle yaw lock for `controller`: engage if it isn't already this controller's
+## lock, release if it is. Called on the trigger press (Touch) and the stylus side
+## press during back-hold navigation, both of which treat the modifier as a toggle
+## so the grip can be released without first letting go of the trigger/side.
+func toggle_yaw_lock(controller: XRController3D) -> void:
+	if _yaw_lock_ctrl == controller:
+		end_yaw_lock(controller)
+	else:
+		begin_yaw_lock(controller)
+
+
+## Engage yaw lock for `controller` if it is the sole gripping controller. A no-op
+## otherwise, so callers needn't pre-check.
 func begin_yaw_lock(controller: XRController3D) -> void:
 	var is_left := controller == left_controller
 	var this_grip := left_grip_active if is_left else right_grip_active
@@ -167,6 +178,8 @@ func begin_yaw_lock(controller: XRController3D) -> void:
 	_yaw_project_scale = pt.basis.get_scale()
 	_yaw_project_yaw_initial = _yaw_of(pt.basis)
 
+	Haptics.tap(controller)  # confirm the lock engaged without needing to look
+
 
 ## Release yaw lock for `controller`, resuming free single-grip from the current
 ## (now-upright) state so there's no jump.
@@ -174,6 +187,7 @@ func end_yaw_lock(controller: XRController3D) -> void:
 	if _yaw_lock_ctrl != controller:
 		return
 	_yaw_lock_ctrl = null
+	Haptics.tap(controller)  # confirm the lock released
 	var is_left := controller == left_controller
 	var this_grip := left_grip_active if is_left else right_grip_active
 	var other_grip := right_grip_active if is_left else left_grip_active
