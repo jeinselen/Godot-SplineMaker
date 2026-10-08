@@ -2,7 +2,7 @@
 
 ![icon-banner](https://github.com/jeinselen/Godot-SplineMaker/blob/main/icon-banner.jpg)
 
-SplineMaker is an experimental passthrough XR spline sketching tool for Meta Quest 3, built with Godot 4.7.2, OpenXR, and the mobile Vulkan renderer. Draw and edit spline-based forms in-headset with the Touch controllers or a Logitech MX Ink stylus, then round-trip project data into Blender.
+SplineMaker is an experimental passthrough XR spline sketching tool for Meta Quest 3 and Steam Frame, built with Godot 4.7.2, OpenXR, and the mobile Vulkan renderer. Draw and edit spline-based forms in-headset with the controllers or a Logitech MX Ink stylus (Quest 3 only), then round-trip project data into Blender.
 
 Projects export as clean `.json` files when closed. Blender import/export is handled by the SplineMaker Project I/O add-on in [DeliveryKit](https://github.com/jeinselen/Blender-DeliveryKit).
 
@@ -146,6 +146,16 @@ adb install -r android/SplineMaker.apk
 ```
 
 Launch the app from the headset's "unknown" apps list. It will request storage permission to import and export project files under `Documents/Splines/`.
+
+## Installing To Steam Frame
+
+Steam Frame support is experimental. Build and install from Desktop Mode on the headset:
+
+1. Use the official Godot 4.7.2 Linux arm64 build to run the project. The Flatpak version can't start OpenXR, but works for editing.
+2. Install the 4.7.2 export templates (`Editor > Manage Export Templates`), then export the `SteamFrame` preset to `linux/SplineMaker.arm64`.
+3. Run `linux-install.command` while Steam is running. It adds Spline Maker to the Steam library as a VR app, with its icon and library art.
+
+To add the shortcut by hand instead, turn on `Properties > Shortcut > Include in VR Library`. Without it, Steam opens the app in a flat window. Projects export to `~/Documents/Splines/`.
 
 ## Blender Add-on
 
