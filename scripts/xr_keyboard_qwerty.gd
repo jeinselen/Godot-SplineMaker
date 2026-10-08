@@ -59,7 +59,9 @@ func _build_keys() -> void:
 func _connect_literal_row(row: HBoxContainer) -> void:
 	for child in row.get_children():
 		var btn := child as Button
-		if btn:
+		# Skip special keys sharing the row (e.g. BackspaceButton in DigitsRow);
+		# they're wired individually in _build_keys().
+		if btn and btn.text.length() == 1:
 			btn.pressed.connect(_on_literal_pressed.bind(btn.text))
 
 

@@ -208,14 +208,14 @@ func _update_yaw_lock(controller: XRController3D) -> void:
 	var new_origin := _yaw_ctrl_pos_initial + yaw_rot * rel + dpos
 
 	# Upright basis: yaw only, preserving the project's scale.
-	var basis := Basis(Vector3.UP, _yaw_project_yaw_initial + dyaw).scaled(_yaw_project_scale)
-	project_space.global_transform = Transform3D(basis, new_origin)
+	var upright := Basis(Vector3.UP, _yaw_project_yaw_initial + dyaw).scaled(_yaw_project_scale)
+	project_space.global_transform = Transform3D(upright, new_origin)
 
 
 ## Heading (rotation about world up) of a basis, in radians. Orthonormalizes first
 ## so a scaled project basis still yields a clean angle.
-func _yaw_of(basis: Basis) -> float:
-	return basis.orthonormalized().get_euler().y
+func _yaw_of(b: Basis) -> float:
+	return b.orthonormalized().get_euler().y
 
 
 ## True while a navigation grip is active on the controller (used by interaction.gd

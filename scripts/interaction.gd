@@ -1664,16 +1664,16 @@ func _stylus_adjust_apply(hand: int) -> void:
 			var sn := e["spline"] as SplineNode
 			var idx: int = e["index"]
 			var target: float = float(e["start"]) + norm * span
-			var snapped: float
+			var snapped_value: float
 			if is_w:
-				snapped = snap_weight_value(target)
-				sn.data.weights[idx] = snapped
+				snapped_value = snap_weight_value(target)
+				sn.data.weights[idx] = snapped_value
 			else:
-				snapped = snap_size_value(target)
-				sn.data.sizes[idx] = snapped
+				snapped_value = snap_size_value(target)
+				sn.data.sizes[idx] = snapped_value
 			sn.mark_dirty()
 			if i == 0:
-				first = snapped
+				first = snapped_value
 		_joystick_edited = true
 		_update_value_label(hand, first)
 

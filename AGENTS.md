@@ -28,3 +28,17 @@ Godot binary: `/Applications/Godot.app/Contents/MacOS/Godot`
 
 ## XR target
 - OpenXR, Meta Quest 3 / AndroidXR. Passthrough enabled (Meta + HTC), foveation on, additive blend mode. Addons: `godotopenxrvendors` (XR export), `godot_ai`. MX Ink stylus support is Quest-3-only (see memory).
+
+## Steam Frame (SteamOS arm64, on-device development)
+- Godot binary: `~/Applications/Godot_v4.7.2-stable_linux.arm64` (official build). **Don't use Flatpak Godot to run the app.** Its sandbox (PID namespace) breaks SteamVR's OpenXR client, so XR never initializes. The Flatpak is fine for editing only.
+- Run on device: F5 from the editor launches natively through SteamVR (`SteamVR/OpenXR 2.18.2`). No export or deploy step.
+- Verified 2026-10-08: OpenXR initializes, supported blend modes `[0, 2]` → alpha-blend passthrough works, refresh rate **72 Hz only**, render target 1728×1728/eye, all actions bound via `/interaction_profiles/valve/frame_controller_valve` in `openxr_action_map.tres`.
+- Harmless log noise: `Property not found: 'xr/openxr/extensions/hand_tracking'` (vendors plugin 4.3.0 on 4.7), one failed `xrCreateInstance` before the successful one, and "Gamescope WSI Layer Error … Hooking has failed" (desktop mirror window; may show an OK/Cancel dialog, so press OK).
+- Export: `SteamFrame` preset (Linux, arm64, ETC2/ASTC) → `linux/SplineMaker.arm64`. Needs 4.7.2 export templates installed (Editor → Manage Export Templates).
+- Steam shortcut: run `./linux-install.command` (no manual "Add to Steam" needed). It installs `~/.local/share/applications/splinemaker.desktop`, then creates/updates the entry in `userdata/*/config/shortcuts.vdf` and copies library art into `grid/<appid>…`. Hard-won details:
+  - **`OpenVR=1` ("Include in VR Library") is required.** Without it Steam launches the app as a flat game. OpenXR still starts, but the session stalls at `XR_SESSION_STATE_VISIBLE` and never reaches `FOCUSED` (see `~/.local/share/Steam/logs/xrclient_SplineMaker.txt`). Manual equivalent: Properties → Shortcut → "Include in VR Library".
+  - **Don't edit `shortcuts.vdf` directly.** Steam keeps shortcuts in memory and overwrites the file. On SteamOS Steam is the `steam.service` user unit (`Restart=always`), and stopping it ends the whole session, which also kills the script. Instead the script calls Steam's JS API (`SteamClient.Apps.AddShortcut/SetShortcutName/SetShortcutIcon/SetShortcutIsVR/SetCustomArtworkForApp`) in the `SharedJSContext` target on Steam's CEF debug port `127.0.0.1:8080` (Steam on the Frame runs with `--remote-debugging-port=8080`). Changes apply live, and Steam saves the vdf and grid files itself. `AddShortcut` ignores its name argument, so follow it with `SetShortcutName`. Artwork types: 0 portrait, 1 hero, 2 logo, 3 wide capsule, 4 icon.
+  - Shortcut appids are random. Removing and re-adding a shortcut gives it a new appid, which orphans any grid art copied by hand.
+  - Steam rejects the 432px RGB `icon.png` ("load icon … failed: invalid format" in `logs/console_log.txt`) but accepts the 256px RGBA `linux/SplineMaker.png` the script generates (verified 2026-10-08).
+  - Double-clicking a `.command` in Dolphin runs it with no terminal, so the script reopens itself in `konsole`.
+- Exports default to `~/Documents/Splines/` on Linux (`OS.SYSTEM_DIR_DOCUMENTS`); user data in `~/.local/share/godot/app_userdata/SplineMaker/`.

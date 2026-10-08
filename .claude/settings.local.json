@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:docs.godotengine.org)",
+      "WebFetch(domain:godotvr.github.io)",
+      "WebFetch(domain:forum.godotengine.org)",
+      "Bash(python3 -c ':*)",
+      "Bash(wc -l /Users/jeinselen/Git/Godot-SplineMaker/scripts/*.gd)",
+      "Bash(grep -n \"find_child\\\\|get_tree\\\\|get_children\" /Users/jeinselen/Git/Godot-SplineMaker/scripts/*.gd)",
+      "Bash(grep -n \"set_data\\\\|spline_node.set_data\\\\|_commit_point\" /Users/jeinselen/Git/Godot-SplineMaker/scripts/*.gd)",
+      "Bash(grep -r \"FileDialog\\\\|file_picker\\\\|open_file\\\\|get_file\\\\|get_path\\\\|DisplayServer\" /Users/jeinselen/Git/Godot-SplineMaker/scripts/*.gd)",
+      "Bash(grep -E \"\\\\.gd$\")",
+      "Bash(grep -r \"import\\\\|load\\\\|read.*json\" /Users/jeinselen/Git/Godot-SplineMaker/scripts/*.gd)",
+      "Bash(which godot *)",
+      "Bash(/Applications/Godot.app/Contents/MacOS/Godot --headless --path /Users/jeinselen/Git/Godot-SplineMaker --check-only --quit)",
+      "Bash(/Applications/Godot.app/Contents/MacOS/Godot --headless --path /Users/jeinselen/Git/Godot-SplineMaker --import)",
+      "Bash(/Applications/Godot.app/Contents/MacOS/Godot --headless --path /Users/jeinselen/Git/Godot-SplineMaker --quit-after 2)"
+    ]
+  }
+}
