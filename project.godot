@@ -38,6 +38,7 @@ shading/overrides/force_lambert_over_burley=true
 anti_aliasing/quality/msaa_3d=1
 environment/defaults/default_clear_color=Color(0.2509804, 0.2509804, 0.2509804, 0)
 vrs/mode=2
+vrs/mode.steam_frame=0
 
 [xr]
 
@@ -45,7 +46,11 @@ openxr/enabled=true
 openxr/reference_space=2
 openxr/environment_blend_mode=2
 openxr/foveation_level=3
+openxr/foveation_level.steam_frame=0
 openxr/foveation_dynamic=true
+openxr/foveation_dynamic.steam_frame=false
+openxr/foveation_eye_tracked.steam_frame=false
+openxr/foveation_with_subsampled_images.steam_frame=false
 shaders/enabled=true
 openxr/extensions/htc/passthrough=true
 openxr/extensions/meta/passthrough=true

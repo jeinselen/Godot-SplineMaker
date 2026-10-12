@@ -20,10 +20,13 @@ func _ready() -> void:
 		# VSync is handled by OpenXR compositor
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 
-		# Enable variable rate shading if supported
-		if RenderingServer.get_rendering_device():
+		# Steam Frame currently has an open Godot 4.7.2 foveation/subpass bug.
+		# Other targets, including Quest, retain XR VRS for standalone performance.
+		if OS.has_feature("steam_frame"):
+			vp.vrs_mode = Viewport.VRS_DISABLED
+		elif RenderingServer.get_rendering_device():
 			vp.vrs_mode = Viewport.VRS_XR
-		elif int(ProjectSettings.get_setting("xr/openxr/foveation_level")) == 0:
+		elif int(ProjectSettings.get_setting_with_override("xr/openxr/foveation_level")) == 0:
 			push_warning("OpenXR: Recommend setting foveation level to High.")
 
 		# Connect session lifecycle signals (passthrough enabled after session begins)
