@@ -119,6 +119,31 @@ func import_and_open_project(json_path: String) -> void:
 	open_project(dir_name)
 
 
+## Quits the app. On Steam Frame, SteamVR doesn't bring the Steam menu back by
+## itself after we exit (it delays the dashboard 10 s and names no overlay), so a
+## detached helper asks SteamVR to show it the moment the process is gone.
+func quit_app() -> void:
+	show_dashboard_after_exit()
+	get_tree().quit()
+
+
+func show_dashboard_after_exit() -> void:
+	const VRCMD := "/opt/steamvr/bin/linuxarm64/vrcmd"
+	if not (OS.has_feature("steam_frame") and FileAccess.file_exists(VRCMD)):
+		return
+	# Open it right away so it doesn't wait on our shutdown (project close/export).
+	OS.create_process(VRCMD, ["--showdashboard"])
+	# Backup in case SteamVR hides it again while the app exits: poll for our own
+	# exit (a zombie counts as gone) instead of sleeping a fixed time, so it
+	# reappears as soon as the process ends. vrcmd itself takes ~25 ms. Gives up
+	# after ~5 s and fires anyway.
+	var script := (
+		"i=0; while [ $i -lt 100 ] && [ -d /proc/%d ] && ! grep -q '^State:.*Z' /proc/%d/status 2>/dev/null; "
+		+ "do sleep 0.05; i=$((i+1)); done; exec \"%s\" --showdashboard"
+	) % [OS.get_process_id(), OS.get_process_id(), VRCMD]
+	OS.create_process("/bin/sh", ["-c", script])
+
+
 func close_project() -> void:
 	_destroy_active_panel()
 	# Clear selection and hover state before freeing SplineNodes

@@ -531,12 +531,17 @@ func get_export_dir() -> String:
 	# Ensure trailing slash
 	if not dir.ends_with("/"):
 		dir += "/"
+	# Create it so a first-time import scan doesn't report a missing folder.
+	DirAccess.make_dir_recursive_absolute(dir)
 	return dir
 
 
 ## Closes the current project: exports a clean JSON file to the export directory,
 ## clears project space. Returns true on successful export, false on failure.
 func close_project() -> bool:
+	# Already closed (e.g. session-stopping and window-close both fire): nothing to do.
+	if _project_dir.is_empty():
+		return false
 	# Flush any pending debounced autosave before closing
 	if _autosave_pending:
 		autosave_immediate()

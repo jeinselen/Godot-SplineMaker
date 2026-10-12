@@ -126,6 +126,13 @@ func _on_openxr_focused_state() -> void:
 	xr_is_focused = true
 	get_tree().paused = false
 
+	# A native Godot XR app still creates a desktop companion window. Gamescope
+	# otherwise presents that mirror as a foreground flat game on Steam Frame,
+	# on top of the correctly running OpenXR scene. Wait until OpenXR owns scene
+	# focus before minimizing it so the XR session can finish starting normally.
+	if OS.has_feature("steam_frame"):
+		_minimize_companion_window()
+
 	# On the first focus the headset pose is finally live, so place the app's
 	# opening layout in front of the user. Guarded inside request_initial_placement()
 	# so simply re-donning the headset later does not teleport everything.
@@ -134,16 +141,18 @@ func _on_openxr_focused_state() -> void:
 		am.request_initial_placement()
 
 
+## Godot refuses to hide the main window ("Can't change visibility of main window"),
+## and SteamVR keeps presenting it as a desktop-game overlay either way, so this only
+## minimizes it. The overlay comes from how Steam launches the shortcut, not from
+## anything the app can change from inside Godot (see AGENTS.md).
+func _minimize_companion_window() -> void:
+	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true)
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_MINIMIZED)
+
+
 func _on_openxr_stopping() -> void:
 	print("OpenXR: Session stopping.")
-	# Export project JSON on app close (via app_manager if in a project)
-	var am: Node = get_node_or_null("%AppManager")
-	if am and am.state == am.AppState.IN_PROJECT:
-		am.close_project()
-	else:
-		var pm: Node = get_node_or_null("%ProjectManager")
-		if pm and pm.has_method("has_open_project") and pm.has_open_project():
-			pm.close_project()
+	_close_open_project()
 
 
 func _on_openxr_pose_recentered() -> void:
@@ -157,10 +166,19 @@ func _on_openxr_pose_recentered() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		_close_open_project()
 		var am: Node = get_node_or_null("%AppManager")
-		if am and am.state == am.AppState.IN_PROJECT:
-			am.close_project()
-		else:
-			var pm: Node = get_node_or_null("%ProjectManager")
-			if pm and pm.has_method("has_open_project") and pm.has_open_project():
-				pm.close_project()
+		if am:
+			am.show_dashboard_after_exit()
+
+
+## Exports and closes the open project, if any. Safe to call from both the
+## session-stopping and window-close paths: once closed, later calls do nothing.
+func _close_open_project() -> void:
+	var am: Node = get_node_or_null("%AppManager")
+	if am and am.state == am.AppState.IN_PROJECT:
+		am.close_project()
+	else:
+		var pm: Node = get_node_or_null("%ProjectManager")
+		if pm and pm.has_method("has_open_project") and pm.has_open_project():
+			pm.close_project()

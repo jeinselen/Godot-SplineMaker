@@ -199,7 +199,7 @@ func _on_new_project_pressed() -> void:
 
 
 func _on_quit_pressed() -> void:
-	get_tree().quit()
+	_app_manager.quit_app()
 
 
 # --- Rename ---

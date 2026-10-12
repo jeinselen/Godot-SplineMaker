@@ -153,7 +153,8 @@ Steam Frame support is experimental. Build and install from Desktop Mode on the 
 
 1. Use the official Godot 4.7.2 Linux arm64 build to run the project. The Flatpak version can't start OpenXR, but works for editing.
 2. Install the 4.7.2 export templates (`Editor > Manage Export Templates`), then export the `SteamFrame` preset to `linux/SplineMaker.arm64`.
-3. Run `linux-install.command` while Steam is running. It adds Spline Maker to the Steam library as a VR app, with its icon and library art.
+3. Run `linux-install.command` while Steam is running. It adds Spline Maker to the Steam library as an OpenXR app, with its icon, library art, and SteamVR per-application video settings.
+4. Keep SteamVR running while the installer runs; it registers the app with SteamVR immediately, with no restart needed. Afterward, XR supersampling is under `VR Settings > Video > Per-Application Video Settings > Resolution Per Eye`. The shortcut starts through a small generated launcher (`linux/SplineMaker-launch.sh`) so Steam treats it as a VR app instead of showing a 2D window.
 
 To add the shortcut by hand instead, turn on `Properties > Shortcut > Include in VR Library`. Without it, Steam opens the app in a flat window. Projects export to `~/Documents/Splines/`.
 
